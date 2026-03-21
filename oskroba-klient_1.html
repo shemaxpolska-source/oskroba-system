@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oskroba – Zamów online</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<!-- SUPABASE -->
+
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--cream:#F5F0E8;--charcoal:#1A1A1A;--rust:#C4391A;--rust-light:#E8503A;--sage:#4A6741;--gold:#D4A843;--warm-gray:#8C8070;--light-gray:#E8E2D8}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charcoal);min-height:100vh}
+.customer-view{max-width:520px;margin:2rem auto;padding:0 1rem}
+.widget-box{background:white;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.1)}
+.widget-hero{background:var(--charcoal);padding:1.5rem 1.75rem;position:relative;overflow:hidden}
+.widget-hero::before{content:'';position:absolute;top:-40px;right:-40px;width:160px;height:160px;background:var(--rust);border-radius:50%;opacity:.15}
+.widget-brand{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:900;color:white}
+.widget-brand span{color:var(--rust-light)}
+.widget-address{font-size:.78rem;color:rgba(255,255,255,.55);margin-top:.2rem;font-family:'DM Mono',monospace;line-height:1.6}
+.widget-address a{color:var(--rust-light);text-decoration:none}
+.widget-intro{background:var(--cream);padding:1rem 1.75rem;font-size:.82rem;line-height:1.6;color:var(--warm-gray);border-bottom:1px solid var(--light-gray)}
+.widget-intro strong{color:var(--charcoal)}
+.widget-body{padding:1.5rem}
+.step-label{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:.5rem}
+.step-title{font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;margin-bottom:1rem}
+.menu-section-label{font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;color:var(--rust);margin:1rem 0 .5rem;display:flex;align-items:center;gap:.5rem}
+.menu-section-label::after{content:'';flex:1;height:1px;background:var(--light-gray)}
+.menu-list{display:flex;flex-direction:column;gap:.4rem;margin-bottom:.5rem}
+.menu-item{border:2px solid var(--light-gray);border-radius:12px;padding:.75rem 1rem;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:.75rem}
+.menu-item:hover{border-color:var(--rust)}.menu-item.selected{border-color:var(--rust);background:#FFF8F6}
+.menu-item-check{width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid var(--light-gray);display:flex;align-items:center;justify-content:center;font-size:.75rem;margin-top:1px;transition:all .15s}
+.menu-item.selected .menu-item-check{background:var(--rust);border-color:var(--rust);color:white}
+.menu-item-info{flex:1}.menu-item-name{font-weight:500;font-size:.88rem}
+.menu-item-desc{font-size:.68rem;color:var(--warm-gray);margin-top:.15rem;line-height:1.4}
+.menu-item-price{font-family:'DM Mono',monospace;font-size:.85rem;font-weight:500;color:var(--rust);white-space:nowrap}
+.menu-item-qty{display:none;align-items:center;gap:.5rem;margin-top:.5rem}
+.menu-item.selected .menu-item-qty{display:flex}
+.qty-btn{width:26px;height:26px;border-radius:50%;border:2px solid var(--light-gray);background:white;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1}
+.qty-btn:hover{border-color:var(--rust);color:var(--rust)}
+.qty-num{font-family:'Playfair Display',serif;font-size:1.1rem;font-weight:700;min-width:1.5rem;text-align:center}
+.time-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.35rem;margin-bottom:1.25rem}
+.time-slot{border:2px solid var(--light-gray);border-radius:8px;padding:.45rem .2rem;text-align:center;cursor:pointer;transition:all .15s;background:white}
+.time-slot:not(.blocked):hover{border-color:var(--rust)}.time-slot.selected{border-color:var(--rust);background:var(--rust)}
+.time-slot.blocked{background:var(--light-gray);opacity:.5;cursor:not-allowed}
+.time-slot-time{font-family:'DM Mono',monospace;font-size:.75rem;font-weight:500;color:var(--charcoal)}
+.time-slot.selected .time-slot-time{color:white}.time-slot.blocked .time-slot-time{color:var(--warm-gray)}
+.time-slot-avail{font-size:.58rem;color:var(--warm-gray);margin-top:.1rem}
+.time-slot.selected .time-slot-avail{color:rgba(255,255,255,.7)}.time-slot.partial .time-slot-avail{color:var(--gold)}
+.cart-summary{background:var(--cream);border-radius:12px;padding:1rem;margin-bottom:1rem;display:none}
+.cart-summary.show{display:block}
+.cart-row{display:flex;justify-content:space-between;font-size:.85rem;padding:.2rem 0}
+.cart-total{font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;border-top:1px solid var(--light-gray);margin-top:.5rem;padding-top:.5rem}
+.avail-note{font-size:.75rem;text-align:center;margin-bottom:.5rem;font-family:'DM Mono',monospace;min-height:1rem}
+.avail-note.warn{color:var(--rust)}
+.form-group{margin-bottom:.85rem}
+.form-group label{display:block;font-size:.78rem;font-weight:500;margin-bottom:.3rem;color:var(--warm-gray)}
+.form-group input{width:100%;border:2px solid var(--light-gray);border-radius:10px;padding:.6rem .85rem;font-family:'DM Sans',sans-serif;font-size:.95rem;color:var(--charcoal);background:white;transition:border-color .15s;outline:none}
+.form-group input:focus{border-color:var(--rust)}
+.btn-order{width:100%;background:var(--rust);color:white;border:none;border-radius:12px;padding:.95rem;font-family:'Playfair Display',serif;font-size:1.05rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:.5rem}
+.btn-order:hover:not(:disabled){background:var(--rust-light);transform:translateY(-1px)}.btn-order:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.success-screen{text-align:center;padding:2.5rem 1.5rem;display:none}.success-screen.show{display:block}
+.success-icon{font-size:3rem;margin-bottom:1rem}
+.success-title{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;margin-bottom:.75rem}
+.success-items{background:var(--cream);border-radius:12px;padding:1rem;margin:.75rem 0;text-align:left}
+.success-detail{color:var(--warm-gray);font-size:.88rem;line-height:1.6}
+.btn-new-order{margin-top:1.25rem;background:var(--cream);border:2px solid var(--light-gray);border-radius:10px;padding:.65rem 1.5rem;font-family:'DM Mono',monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .15s}
+.btn-new-order:hover{border-color:var(--rust);color:var(--rust)}
+.loading-bar{height:3px;background:linear-gradient(90deg,var(--rust),var(--rust-light));animation:loading 1s infinite;display:none}
+.loading-bar.show{display:block}
+@keyframes loading{0%{background-position:-200px 0}100%{background-position:200px 0}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+</head>
+<body>
+<div class="loading-bar" id="loading-bar"></div>
+<div class="customer-view">
+  <div class="widget-box">
+    <div class="widget-hero">
+      <div class="widget-brand">Piekarnia Oskroba<span>.</span></div>
+      <div class="widget-address">
+        ul. Lubelska 78, 05-462 Wiązowna<br>
+        tel. <a href="tel:509404904">509 404 904</a> &nbsp;·&nbsp;
+        <a href="https://instagram.com/wiazowskipiec.pizzaichleb" target="_blank">@wiazowskipiec.pizzaichleb</a>
+      </div>
+    </div>
+    <div class="widget-intro">
+      Zamów <strong>pizzę lub kanapkę włoską</strong> i odbierz o wybranej godzinie — bez kolejki.<br>
+      Wybierz co chcesz zjeść → wybierz godzinę → podaj imię i telefon. Gotowe! 🍕
+    </div>
+    <div id="order-form" class="widget-body">
+      <div class="step-label">Krok 1 — Wybierz co zamawiasz</div>
+      <div class="step-title">Co dziś zjesz?</div>
+      <div class="menu-section-label">🍕 Pizza</div>
+      <div class="menu-list" id="menu-pizza"></div>
+      <div class="menu-section-label">🥪 Kanapki włoskie</div>
+      <div class="menu-list" id="menu-kanapki"></div>
+      <div class="step-label" style="margin-top:1.25rem">Krok 2 — Wybierz godzinę odbioru</div>
+      <div class="step-title">Kiedy odbierzesz?</div>
+      <div id="hours-info" style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--warm-gray);margin-bottom:.75rem"></div>
+      <div class="time-grid" id="customer-time-grid"></div>
+      <div class="cart-summary" id="cart-summary">
+        <div style="font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:.5rem">Twoje zamówienie</div>
+        <div id="cart-rows"></div>
+        <div class="cart-row cart-total"><span>Razem</span><span id="cart-total-price">0 PLN</span></div>
+      </div>
+      <div id="avail-note" class="avail-note"></div>
+      <div class="step-label">Krok 3 — Twoje dane</div>
+      <div class="form-group"><label>Imię i nazwisko</label><input type="text" id="inp-name" placeholder="np. Marta Kowalska"></div>
+      <div class="form-group"><label>Telefon</label><input type="tel" id="inp-phone" placeholder="np. 600 123 456"></div>
+      <button class="btn-order" id="btn-order" onclick="placeOrder()" disabled>Zamawiam</button>
+      <div style="font-size:.72rem;color:var(--warm-gray);text-align:center;margin-top:.75rem;font-family:'DM Mono',monospace">
+        Płatność gotówką lub kartą przy odbiorze
+      </div>
+    </div>
+    <div id="success-screen" class="success-screen">
+      <div class="success-icon">🍕</div>
+      <div class="success-title">Zamówienie przyjęte!</div>
+      <div class="success-items" id="success-items"></div>
+      <div class="success-detail" id="success-detail"></div>
+      <button class="btn-new-order" onclick="resetOrder()">Złóż kolejne zamówienie</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ SUPABASE CONFIG ══
+// TODO: Wklej swoje dane z Supabase po założeniu projektu
+const SUPABASE_URL = 'https://sjpmmuvqvhidixawvjrn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcG1tdXZxdmhpZGl4YXd2anJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjMzNjUsImV4cCI6MjA4OTY5OTM2NX0.TqUAb1pftQKpCcGL-GMQf8E3rdix3dKh9cMMve9s238';
+let supabase = null;
+let useSupabase = false;
+function initSupabase(){
+  try{
+    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'&&window.supabase){
+      supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+      useSupabase=true;
+    }
+  }catch(e){console.log('Supabase init failed',e);}
+}
+
+// ══ MENU ══
+const PIZZA=[
+  {id:'margherita', name:'Margherita',        price:32,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, świeża bazylia, oliwa z oliwek'},
+  {id:'crudo',      name:'Prosciutto Crudo',  price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, szynka crudo, rukola, pomidorki koktajlowe, płatki Grana Padano DOP'},
+  {id:'cotto',      name:'Szynka Cotto',      price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, szynka cotto'},
+  {id:'hawaii',     name:'Hawaii',            price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, szynka cotto, ananasy'},
+  {id:'salame',     name:'Salame',            price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, salami Napoli, czarne oliwki'},
+  {id:'q4f',        name:'Quattro Formaggi',  price:38,  desc:'mozzarella fior di latte, ricotta, gorgonzola, parmezan, oregano, oliwa z oliwek'},
+  {id:'bbq',        name:'BBQ Chicken',       price:38,  desc:'sos BBQ, mozzarella fior di latte, kurczak grillowany, czerwona cebula, kukurydza'},
+  {id:'pikante',    name:'Salame Pikante 🌶️', price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, kiełbasa chorizo, karmelizowana cebula, papryczki pepperoni, pomidorki koktajlowe, świeża bazylia'},
+  {id:'capricciosa',name:'Capricciosa',       price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, szynka cotto, pieczarki'},
+  {id:'pancetta',   name:'Pancetta – Boczek', price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, pancetta, czerwona cebula, szczypiorek'},
+  {id:'tonno',      name:'Tonno',             price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, tuńczyk, czerwona cebula, zielone oliwki'},
+  {id:'carbonara',  name:'Carbonara',         price:38,  desc:'sos śmietanowy crème, mozzarella fior di latte, pancetta, czerwona cebula, jajo, szczypiorek'},
+  {id:'vege',       name:'Spinaci Vege 🌿',   price:38,  desc:'crème fraîche, mozzarella fior di latte, pomidory suszone, świeży szpinak, płatki czosnku, oliwa z oliwek'},
+  {id:'diavola',    name:'Diavola 🌶️',        price:38,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, nduja piccante, karmelizowana cebula, papryczki jalapeño, świeży czosnek'},
+  {id:'burratina',  name:'Burratina Crudo',   price:46,  desc:'sos pomidorowy Pelati, szynka crudo, pomidorki koktajlowe, rukola, burrata, balsamico, oliwa z oliwek'},
+];
+const KANAPKI=[
+  {id:'kan_vege',   name:'Kanapka włoska – Vege 🌿', price:15.9, desc:'mozzarella fior di latte, sos pomidorowy Pelati, rukola, pomidory z balsamico, oregano'},
+  {id:'kan_salame', name:'Kanapka włoska – Salame',  price:15.9, desc:'salami włoskie, rukola, sos pomidorowy Pelati, pomidory włoskie, oliwki'},
+  {id:'kan_parma',  name:'Kanapka włoska – Parma',   price:15.9, desc:'szynka parmeńska włoska, sos pomidorowy Pelati, pomidorki cherry'},
+  {id:'kan_cotto',  name:'Kanapka włoska – Szynka',  price:15.9, desc:'szynka cotto, rukola, pomidory malinowe czerwone lub żółte'},
+];
+const MENU=[...PIZZA,...KANAPKI];
+const MAX=2,STEP=5;
+const today=new Date();
+let slots={},selectedTime=null,cart={};
+
+function getHours(){
+  const dow=today.getDay();
+  if(dow===0)return{start:9,endH:17,endM:30,label:'Niedziela 9:00–17:30'};
+  if(dow===6)return{start:9,endH:18,endM:0,label:'Sobota 9:00–18:00'};
+  return{start:9,endH:19,endM:30,label:'Pon–Pt 9:00–19:30'};
+}
+function pad(n){return String(n).padStart(2,'0')}
+
+async function initSlots(){
+  initSupabase();
+  slots={};
+  const {start,endH,endM}=getHours();
+  for(let h=start;h<=endH;h++)
+    for(let m=0;m<60;m+=STEP){
+      if(h===endH&&m>endM)break;
+      slots[`${pad(h)}:${pad(m)}`]={count:0,manualBlocked:false};
+    }
+
+  document.getElementById('hours-info').textContent=`Dziś czynne: ${getHours().label}`;
+
+  // Wczytaj zajętość z Supabase jeśli dostępne
+  if(useSupabase){
+    const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    const {data}=await supabase.from('orders').select('pickup_time,items').eq('date',dateStr).eq('cancelled',false);
+    if(data) data.forEach(o=>{
+      const qty=o.items.reduce((s,i)=>s+i.qty,0);
+      if(slots[o.pickup_time]) slots[o.pickup_time].count=Math.min(slots[o.pickup_time].count+qty,MAX);
+    });
+    const {data:blocked}=await supabase.from('blocked_slots').select('slot_time').eq('date',dateStr);
+    if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
+  }
+  renderCustomerGrid();
+  renderMenuList();
+}
+
+function getState(k){const s=slots[k];if(!s)return'unknown';if(s.manualBlocked||s.count>=MAX)return'blocked';if(s.count>0)return'partial';return'available'}
+function cartTotal(){return Object.values(cart).reduce((a,b)=>a+b,0)}
+
+function renderCustomerGrid(){
+  const grid=document.getElementById('customer-time-grid');if(!grid)return;grid.innerHTML='';
+  Object.keys(slots).forEach(key=>{
+    const state=getState(key),s=slots[key],rem=MAX-s.count,blocked=state==='blocked';
+    const el=document.createElement('div');el.className=`time-slot ${state}${selectedTime===key&&!blocked?' selected':''}`;
+    el.innerHTML=`<div class="time-slot-time">${key}</div><div class="time-slot-avail">${blocked?'zajęty':rem===1?'1 wolne':'✓'}</div>`;
+    if(!blocked)el.onclick=()=>selectTime(key);
+    grid.appendChild(el);
+  });updateBtn();
+}
+function buildMenuSection(listId,items){
+  const list=document.getElementById(listId);if(!list)return;list.innerHTML='';
+  items.forEach(item=>{
+    const qty=cart[item.id]||0;const el=document.createElement('div');el.className=`menu-item${qty>0?' selected':''}`;
+    el.innerHTML=`<div class="menu-item-check">${qty>0?'✓':''}</div>
+      <div class="menu-item-info"><div class="menu-item-name">${item.name}</div><div class="menu-item-desc">${item.desc}</div>
+        ${qty>0?`<div class="menu-item-qty">
+          <button class="qty-btn" onclick="chQty('${item.id}',-1,event)">−</button>
+          <div class="qty-num">${qty}</div>
+          <button class="qty-btn" onclick="chQty('${item.id}',1,event)">+</button>
+        </div>`:''}
+      </div><div class="menu-item-price">${item.price.toFixed(2)} PLN</div>`;
+    el.onclick=(e)=>{if(!e.target.closest('.qty-btn'))toggleItem(item.id)};
+    list.appendChild(el);
+  });
+}
+function renderMenuList(){buildMenuSection('menu-pizza',PIZZA);buildMenuSection('menu-kanapki',KANAPKI);renderCart()}
+function toggleItem(id){
+  if(cart[id]){delete cart[id];}
+  else{
+    if(selectedTime){const rem=MAX-slots[selectedTime].count;if(cartTotal()>=rem){setNote('warn',`⚠️ Limit ${MAX} szt na wybrany termin.`);return}}
+    cart[id]=1;
+  }
+  renderMenuList();updateBtn();
+}
+function chQty(id,d,e){
+  e.stopPropagation();const nq=(cart[id]||0)+d;
+  if(nq<=0){delete cart[id];}
+  else if(d>0&&selectedTime){const rem=MAX-slots[selectedTime].count;if(cartTotal()>=rem){setNote('warn',`⚠️ Limit ${MAX} szt.`);return};cart[id]=nq;}
+  else cart[id]=nq;
+  renderMenuList();updateBtn();
+}
+function renderCart(){
+  const summary=document.getElementById('cart-summary'),rows=document.getElementById('cart-rows'),totalEl=document.getElementById('cart-total-price');
+  const items=Object.entries(cart).filter(([,q])=>q>0);
+  if(!items.length){summary.classList.remove('show');return}summary.classList.add('show');
+  let tp=0;rows.innerHTML=items.map(([id,qty])=>{const m=MENU.find(x=>x.id===id);tp+=m.price*qty;return`<div class="cart-row"><span>${qty}× ${m.name}</span><span>${(m.price*qty).toFixed(2)} PLN</span></div>`}).join('');
+  totalEl.textContent=`${tp.toFixed(2)} PLN`;
+}
+function setNote(type,msg){const n=document.getElementById('avail-note');n.textContent=msg;n.className=`avail-note ${type}`;setTimeout(()=>{n.textContent='';n.className='avail-note'},3000)}
+function selectTime(key){selectedTime=key;renderCustomerGrid();updateBtn()}
+function updateBtn(){
+  const btn=document.getElementById('btn-order');if(!btn)return;const n=cartTotal();const ok=selectedTime&&n>0;
+  btn.disabled=!ok;
+  if(!n)btn.textContent='Zamawiam — wybierz co chcesz zjeść';
+  else if(!selectedTime)btn.textContent='Zamawiam — wybierz godzinę odbioru';
+  else btn.textContent=`Zamawiam na ${selectedTime} →`;
+}
+
+async function placeOrder(){
+  const name=document.getElementById('inp-name').value.trim(),phone=document.getElementById('inp-phone').value.trim();
+  if(!name||!phone){alert('Podaj imię i telefon 🙏');return}
+  if(!selectedTime||!cartTotal())return;
+  const items=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{const m=MENU.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
+  const tp=items.reduce((s,i)=>s+i.qty*i.price,0);
+  const n=cartTotal();
+
+  document.getElementById('loading-bar').classList.add('show');
+  document.getElementById('btn-order').disabled=true;
+
+  if(useSupabase){
+    const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    await supabase.from('orders').insert({
+      name, phone,
+      pickup_time: selectedTime,
+      date: dateStr,
+      items: items,
+      total: tp,
+      source: 'online',
+      done: false,
+      cancelled: false,
+      created_at: new Date().toISOString()
+    });
+  }
+
+  document.getElementById('loading-bar').classList.remove('show');
+  document.getElementById('order-form').style.display='none';
+  document.getElementById('success-screen').classList.add('show');
+  document.getElementById('success-items').innerHTML=items.map(i=>`<div class="cart-row"><span>${i.qty}× ${i.name}</span><span>${(i.qty*i.price).toFixed(2)} PLN</span></div>`).join('')+`<div class="cart-row cart-total"><span>Razem</span><span>${tp.toFixed(2)} PLN</span></div>`;
+  document.getElementById('success-detail').innerHTML=`Odbiór o <strong>${selectedTime}</strong> · ul. Lubelska 78, Wiązowna<br>Płatność gotówką lub kartą przy odbiorze 🍕`;
+}
+function resetOrder(){
+  selectedTime=null;cart={};
+  document.getElementById('inp-name').value='';document.getElementById('inp-phone').value='';
+  document.getElementById('order-form').style.display='block';
+  document.getElementById('success-screen').classList.remove('show');
+  window.addEventListener("load", initSlots);
+}
+
+window.addEventListener("load", initSlots);
+</script>
+</body>
+</html>
