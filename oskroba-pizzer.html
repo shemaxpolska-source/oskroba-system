@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oskroba – Panel Pizzera</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--cream:#F5F0E8;--charcoal:#1A1A1A;--rust:#C4391A;--rust-light:#E8503A;--sage:#4A6741;--gold:#D4A843;--warm-gray:#8C8070;--light-gray:#E8E2D8}
+body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charcoal);min-height:100vh}
+.header{background:var(--charcoal);padding:0 1.5rem;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100}
+.logo{font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:900;color:var(--cream)}
+.logo span{color:var(--rust-light)}
+.tab-switcher{display:flex;gap:.2rem;background:rgba(255,255,255,.08);border-radius:8px;padding:4px}
+.tab-btn{font-family:'DM Mono',monospace;font-size:.65rem;font-weight:500;letter-spacing:.05em;text-transform:uppercase;border:none;border-radius:6px;padding:.42rem .8rem;cursor:pointer;transition:all .2s;color:var(--warm-gray);background:transparent;white-space:nowrap}
+.tab-btn.active{background:var(--rust);color:white}
+.view{display:none}.view.active{display:block}
+.pizzer-panel{padding:2rem;max-width:960px;margin:0 auto}
+.panel-header{display:flex;align-items:baseline;gap:1rem;margin-bottom:.4rem}
+.panel-title{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700}
+.panel-hours{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--warm-gray);margin-bottom:1.25rem}
+.live-badge{display:flex;align-items:center;gap:.4rem;font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.08em;color:var(--sage);text-transform:uppercase}
+.live-dot{width:8px;height:8px;background:var(--sage);border-radius:50%;animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+.legend{display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--warm-gray);font-family:'DM Mono',monospace}
+.legend-dot{width:10px;height:10px;border-radius:2px}
+.slots-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:.6rem;margin-bottom:2rem}
+.slot-card{background:white;border-radius:12px;padding:.85rem;border:2px solid transparent;transition:all .2s}
+.slot-card.available{border-color:var(--sage)}.slot-card.partial{border-color:var(--gold)}.slot-card.blocked{border-color:var(--rust);background:#FFF5F3}
+.slot-time{font-family:'DM Mono',monospace;font-size:1.1rem;font-weight:500;margin-bottom:.2rem}
+.slot-status{font-size:.68rem;font-weight:500;letter-spacing:.04em;text-transform:uppercase;margin-bottom:.5rem}
+.slot-card.available .slot-status{color:var(--sage)}.slot-card.partial .slot-status{color:var(--gold)}.slot-card.blocked .slot-status{color:var(--rust)}
+.pizza-bar-wrap{background:var(--light-gray);border-radius:4px;height:5px;margin-bottom:.6rem;overflow:hidden}
+.pizza-bar{height:100%;border-radius:4px;transition:width .4s}
+.slot-card.available .pizza-bar{background:var(--sage)}.slot-card.partial .pizza-bar{background:var(--gold)}.slot-card.blocked .pizza-bar{background:var(--rust)}
+.slot-count{font-family:'DM Mono',monospace;font-size:.72rem;color:var(--warm-gray);margin-bottom:.6rem}
+.slot-actions{display:flex;gap:.3rem}
+.btn-block,.btn-unblock,.btn-add{font-size:.65rem;font-family:'DM Mono',monospace;font-weight:500;border:none;border-radius:6px;padding:.3rem .5rem;cursor:pointer;transition:all .15s;flex:1;text-align:center}
+.btn-block{background:#FFE8E4;color:var(--rust)}.btn-block:hover{background:var(--rust);color:white}
+.btn-unblock{background:#E4F0E2;color:var(--sage)}.btn-unblock:hover{background:var(--sage);color:white}
+.btn-add{background:var(--light-gray);color:var(--charcoal)}.btn-add:hover{background:var(--charcoal);color:white}
+.section-label{font-family:'DM Mono',monospace;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
+.orders-list{display:flex;flex-direction:column;gap:.6rem}
+.order-card{background:white;border-radius:12px;padding:1rem 1.25rem;border-left:4px solid var(--rust);animation:slideIn .35s ease}
+.order-card.done{border-left-color:var(--sage);opacity:.6}
+@keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+.order-top{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
+.order-time-badge{font-family:'DM Mono',monospace;font-size:.9rem;font-weight:500;background:var(--charcoal);color:white;border-radius:8px;padding:.35rem .65rem;white-space:nowrap}
+.order-info{flex:1}.order-name{font-weight:500;font-size:.95rem}.order-detail{font-size:.78rem;color:var(--warm-gray);margin-top:.1rem}
+.order-pizza-count{font-family:'Playfair Display',serif;font-size:1.4rem;font-weight:700;color:var(--rust);white-space:nowrap}
+.btn-done{font-family:'DM Mono',monospace;font-size:.68rem;border:none;background:#E4F0E2;color:var(--sage);border-radius:6px;padding:.35rem .65rem;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-done:hover{background:var(--sage);color:white}
+.order-items{display:flex;flex-wrap:wrap;gap:.35rem}
+.order-item-tag{font-size:.72rem;font-family:'DM Mono',monospace;background:var(--cream);border:1px solid var(--light-gray);border-radius:20px;padding:.2rem .55rem}
+.new-order-alert{display:none;background:var(--rust);color:white;padding:.75rem 1.5rem;border-radius:12px;font-weight:500;margin-bottom:1rem;align-items:center;gap:.75rem;animation:shake .4s ease}
+.new-order-alert.show{display:flex}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+/* STATS */
+.stats-panel{padding:2rem;max-width:960px;margin:0 auto}
+.stats-title{font-family:'Playfair Display',serif;font-size:2rem;font-weight:700}
+.date-tabs{display:flex;gap:.35rem;background:white;border-radius:10px;padding:4px;border:2px solid var(--light-gray)}
+.date-tab{font-family:'DM Mono',monospace;font-size:.68rem;letter-spacing:.06em;text-transform:uppercase;border:none;border-radius:7px;padding:.4rem .85rem;cursor:pointer;transition:all .2s;color:var(--warm-gray);background:transparent}
+.date-tab.active{background:var(--charcoal);color:white}
+.stats-kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:1rem;margin-bottom:2rem}
+.kpi-card{background:white;border-radius:16px;padding:1.25rem;border:2px solid var(--light-gray)}
+.kpi-label{font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:.5rem}
+.kpi-value{font-family:'Playfair Display',serif;font-size:2rem;font-weight:900;line-height:1}
+.kpi-sub{font-size:.78rem;color:var(--warm-gray);margin-top:.3rem}
+.kpi-card.accent{background:var(--charcoal)}.kpi-card.accent .kpi-label{color:rgba(255,255,255,.5)}.kpi-card.accent .kpi-value{color:white}.kpi-card.accent .kpi-sub{color:rgba(255,255,255,.4)}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem}
+.stats-block{background:white;border-radius:16px;padding:1.5rem;border:2px solid var(--light-gray)}
+.stats-block-title{font-family:'DM Mono',monospace;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:1.25rem}
+.ranking-item{display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem}
+.rank-num{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--warm-gray);min-width:1.5rem}
+.rank-bar-wrap{flex:1;background:var(--light-gray);border-radius:4px;height:8px;overflow:hidden}
+.rank-bar{height:100%;border-radius:4px;background:var(--rust);transition:width .6s}
+.rank-name{font-size:.82rem;font-weight:500;min-width:130px}
+.rank-count{font-family:'DM Mono',monospace;font-size:.78rem;color:var(--rust);font-weight:500;min-width:2.5rem;text-align:right}
+.hour-chart{display:flex;align-items:flex-end;gap:3px;height:80px;margin-bottom:.5rem}
+.hour-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px}
+.hour-bar{width:100%;background:var(--rust);border-radius:3px 3px 0 0;transition:height .5s;min-height:2px}
+.hour-bar.peak{background:var(--charcoal)}
+.hour-label{font-family:'DM Mono',monospace;font-size:.55rem;color:var(--warm-gray)}
+.channel-row{display:flex;align-items:center;gap:1rem;margin-bottom:.85rem}
+.channel-info{flex:1}.channel-name{font-weight:500;font-size:.9rem}
+.channel-bar-wrap{background:var(--light-gray);border-radius:4px;height:8px;margin-top:.3rem;overflow:hidden}
+.channel-bar{height:100%;border-radius:4px;transition:width .6s}
+.channel-count{font-family:'DM Mono',monospace;font-size:.85rem;font-weight:500;white-space:nowrap}
+.history-table{width:100%;border-collapse:collapse}
+.history-table th{font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.06em;text-transform:uppercase;color:var(--warm-gray);text-align:left;padding:.5rem .75rem;border-bottom:2px solid var(--light-gray)}
+.history-table td{font-size:.82rem;padding:.6rem .75rem;border-bottom:1px solid var(--light-gray)}
+.history-table tr:last-child td{border-bottom:none}
+.history-table tr:hover td{background:var(--cream)}
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center}
+.modal-overlay.show{display:flex}
+.modal{background:white;border-radius:16px;padding:1.75rem;width:360px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-title{font-family:'Playfair Display',serif;font-size:1.2rem;font-weight:700;margin-bottom:.25rem}
+.modal-subtitle{font-size:.82rem;color:var(--warm-gray);margin-bottom:1rem;line-height:1.4}
+.modal-actions{display:flex;gap:.5rem;margin-top:.75rem}
+.btn-modal-cancel{flex:1;border:2px solid var(--light-gray);background:white;border-radius:10px;padding:.65rem;cursor:pointer;font-family:'DM Mono',monospace;font-size:.75rem;transition:all .15s}
+.btn-modal-cancel:hover{border-color:var(--charcoal)}
+.btn-modal-confirm{flex:2;border:none;background:var(--rust);color:white;border-radius:10px;padding:.65rem;cursor:pointer;font-family:'DM Mono',monospace;font-size:.75rem;font-weight:500;transition:all .15s}
+.btn-modal-confirm:hover{background:var(--rust-light)}.btn-modal-confirm:disabled{opacity:.4;cursor:not-allowed}
+@media(max-width:700px){.pizzer-panel,.stats-panel{padding:1rem}.slots-grid{grid-template-columns:repeat(3,1fr)}.stats-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header class="header">
+  <div class="logo">Oskroba<span>.</span> <span style="font-size:.9rem;font-weight:400;color:var(--warm-gray)">— panel</span></div>
+  <div class="tab-switcher">
+    <button class="tab-btn active" onclick="switchView('pizzer',this)">🍕 Pizzer</button>
+    <button class="tab-btn" onclick="switchView('stats',this)">📊 Statystyki</button>
+  </div>
+</header>
+
+<div id="view-pizzer" class="view active">
+  <div class="pizzer-panel">
+    <div class="panel-header">
+      <h1 class="panel-title">Wiązowna — dziś</h1>
+      <div class="live-badge"><div class="live-dot"></div> live</div>
+    </div>
+    <div class="panel-hours" id="panel-hours"></div>
+    <div id="new-order-alert" class="new-order-alert"><span>🔔</span><span id="alert-text"></span></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--sage)"></div>wolny</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--gold)"></div>1 pizza</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--rust)"></div>pełny/zablokowany</div>
+    </div>
+    <div class="slots-grid" id="slots-grid"></div>
+    <div class="section-label">Zamówienia <span id="order-count-badge" style="background:var(--rust);color:white;border-radius:20px;padding:.1rem .5rem;font-size:.65rem"></span></div>
+    <div class="orders-list" id="orders-list"></div>
+  </div>
+</div>
+
+<div id="view-stats" class="view">
+  <div class="stats-panel">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;flex-wrap:wrap;gap:.75rem">
+      <h1 class="stats-title">Statystyki sprzedaży</h1>
+      <div class="date-tabs">
+        <button class="date-tab active" onclick="setStatsPeriod('day',this)">Dziś</button>
+        <button class="date-tab" onclick="setStatsPeriod('month',this)">Ten miesiąc</button>
+        <button class="date-tab" onclick="setStatsPeriod('all',this)">Wszystko</button>
+      </div>
+    </div>
+    <div class="stats-kpi-grid" id="stats-kpi-grid"></div>
+    <div class="stats-grid">
+      <div class="stats-block"><div class="stats-block-title">🏆 Ranking pozycji</div><div id="stats-ranking"></div></div>
+      <div class="stats-block"><div class="stats-block-title">🕐 Godziny szczytu</div><div class="hour-chart" id="stats-hours"></div><div style="display:flex;justify-content:space-between;margin-top:.25rem" id="stats-hour-labels"></div></div>
+      <div class="stats-block"><div class="stats-block-title">📱 Online vs Telefoniczne</div><div id="stats-channels"></div></div>
+      <div class="stats-block"><div class="stats-block-title">📅 Historia dni</div><table class="history-table" id="stats-history"></table></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title">📞 Zamówienie telefoniczne</div>
+    <div class="modal-subtitle">Slot <strong id="modal-slot-time"></strong> · <span id="modal-rem-text"></span></div>
+    <div id="modal-menu-list" style="display:flex;flex-direction:column;gap:.4rem;margin:.75rem 0"></div>
+    <div id="modal-cart-summary" style="display:none;background:var(--cream);border-radius:10px;padding:.75rem;margin-bottom:.5rem">
+      <div style="font-family:'DM Mono',monospace;font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:.5rem">Podsumowanie</div>
+      <div id="modal-cart-rows"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closeModal()">Anuluj</button>
+      <button class="btn-modal-confirm" id="btn-modal-confirm" onclick="confirmAddPizzas()" disabled>Dodaj →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ SUPABASE CONFIG ══
+const SUPABASE_URL = 'https://sjpmmuvqvhidixawvjrn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcG1tdXZxdmhpZGl4YXd2anJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjMzNjUsImV4cCI6MjA4OTY5OTM2NX0.TqUAb1pftQKpCcGL-GMQf8E3rdix3dKh9cMMve9s238';
+let supabase=null,useSupabase=false;
+try{if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'){supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);useSupabase=true;}}catch(e){}
+
+const PIZZA=[
+  {id:'margherita', name:'Margherita',        price:32,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, świeża bazylia'},
+  {id:'crudo',      name:'Prosciutto Crudo',  price:38,  desc:'sos pomidorowy Pelati, mozzarella, szynka crudo, rukola, Grana Padano'},
+  {id:'cotto',      name:'Szynka Cotto',      price:38,  desc:'sos pomidorowy Pelati, mozzarella, szynka cotto'},
+  {id:'hawaii',     name:'Hawaii',            price:38,  desc:'sos pomidorowy Pelati, mozzarella, szynka cotto, ananasy'},
+  {id:'salame',     name:'Salame',            price:38,  desc:'sos pomidorowy Pelati, mozzarella, salami Napoli, czarne oliwki'},
+  {id:'q4f',        name:'Quattro Formaggi',  price:38,  desc:'mozzarella, ricotta, gorgonzola, parmezan, oregano'},
+  {id:'bbq',        name:'BBQ Chicken',       price:38,  desc:'sos BBQ, mozzarella, kurczak, cebula, kukurydza'},
+  {id:'pikante',    name:'Salame Pikante 🌶️', price:38,  desc:'chorizo, karmelizowana cebula, jalapeño, bazylia'},
+  {id:'capricciosa',name:'Capricciosa',       price:38,  desc:'sos pomidorowy, mozzarella, szynka cotto, pieczarki'},
+  {id:'pancetta',   name:'Pancetta – Boczek', price:38,  desc:'pancetta, czerwona cebula, szczypiorek'},
+  {id:'tonno',      name:'Tonno',             price:38,  desc:'tuńczyk, czerwona cebula, zielone oliwki'},
+  {id:'carbonara',  name:'Carbonara',         price:38,  desc:'sos śmietanowy, pancetta, cebula, jajo'},
+  {id:'vege',       name:'Spinaci Vege 🌿',   price:38,  desc:'crème fraîche, szpinak, pomidory suszone, czosnek'},
+  {id:'diavola',    name:'Diavola 🌶️',        price:38,  desc:'nduja piccante, jalapeño, czosnek'},
+  {id:'burratina',  name:'Burratina Crudo',   price:46,  desc:'szynka crudo, burrata, rukola, balsamico'},
+  {id:'kan_vege',   name:'Kanapka – Vege 🌿', price:15.9,desc:'mozzarella, Pelati, rukola, pomidory, balsamico'},
+  {id:'kan_salame', name:'Kanapka – Salame',  price:15.9,desc:'salami, rukola, Pelati, oliwki'},
+  {id:'kan_parma',  name:'Kanapka – Parma',   price:15.9,desc:'szynka parmeńska, Pelati, pomidorki cherry'},
+  {id:'kan_cotto',  name:'Kanapka – Szynka',  price:15.9,desc:'szynka cotto, rukola, pomidory malinowe'},
+];
+const MAX=2,STEP=5;
+const today=new Date();
+let slots={},orders=[],statsPeriod='day',modalSlot=null,modalCart={},modalExtraSlots=0;
+
+function getHours(){const dow=today.getDay();if(dow===0)return{start:9,endH:17,endM:30,label:'Niedziela 9:00–17:30'};if(dow===6)return{start:9,endH:18,endM:0,label:'Sobota 9:00–18:00'};return{start:9,endH:19,endM:30,label:'Pon–Pt 9:00–19:30'}}
+function pad(n){return String(n).padStart(2,'0')}
+function fmtDate(d){return`${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`}
+
+// Historia demo
+const historyData=[];
+for(let i=29;i>=1;i--){const d=new Date(today);d.setDate(d.getDate()-i);const op=Math.floor(Math.random()*18)+4,tp=Math.floor(Math.random()*12)+2;historyData.push({date:fmtDate(d),online:op,tel:tp,revenue:(op+tp)*37+Math.floor(Math.random()*80)})}
+
+async function initSlots(){
+  slots={};
+  const {start,endH,endM}=getHours();
+  for(let h=start;h<=endH;h++)for(let m=0;m<60;m+=STEP){if(h===endH&&m>endM)break;slots[`${pad(h)}:${pad(m)}`]={count:0,manualBlocked:false,id:null}}
+
+  const ph=document.getElementById('panel-hours');
+  if(ph)ph.textContent=`Dziś: ${getHours().label} · sloty co ${STEP} min · max ${MAX} pizz/slot`;
+
+  if(useSupabase){
+    const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    // Wczytaj zamówienia
+    const {data:ordData}=await supabase.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
+    if(ordData){
+      orders=ordData.map(o=>({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items}));
+      ordData.forEach(o=>{const qty=o.items.reduce((s,i)=>s+i.qty,0);if(slots[o.pickup_time])slots[o.pickup_time].count=Math.min((slots[o.pickup_time].count||0)+qty,MAX*2)});
+    }
+    // Wczytaj blokady
+    const {data:blData}=await supabase.from('blocked_slots').select('*').eq('date',dateStr);
+    if(blData)blData.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
+
+    // REALTIME — nasłuchuj nowych zamówień
+    supabase.channel('orders').on('postgres_changes',{event:'INSERT',schema:'public',table:'orders'},(payload)=>{
+      const o=payload.new;
+      if(o.date===dateStr){
+        const qty=o.items.reduce((s,i)=>s+i.qty,0);
+        if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
+        orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
+        renderPizzerPanel();
+        showAlert(`🛒 ${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}× ${i.name}`).join(', ')}`);
+      }
+    }).subscribe();
+  } else {
+    // TRYB DEMO bez Supabase
+    orders=[
+      {id:1,name:'Piotr Nowak',phone:'601 222 333',time:'12:00',done:true,source:'online',items:[{name:'Margherita',qty:1,price:32},{name:'Capricciosa',qty:1,price:38}]},
+      {id:2,name:'Kasia W.',phone:'500 111 999',time:'12:05',done:true,source:'online',items:[{name:'Quattro Formaggi',qty:1,price:38}]},
+      {id:3,name:'Marek S.',phone:'602 777 444',time:'14:00',done:false,source:'online',items:[{name:'Diavola 🌶️',qty:1,price:38}]},
+    ];
+    if(slots['12:00'])slots['12:00'].count=2;
+    if(slots['12:05'])slots['12:05'].count=1;
+    if(slots['14:00'])slots['14:00'].count=1;
+  }
+  renderPizzerPanel();
+}
+
+function getState(k){const s=slots[k];if(!s)return'unknown';if(s.manualBlocked||s.count>=MAX)return'blocked';if(s.count>0)return'partial';return'available'}
+
+function renderPizzerPanel(){
+  const grid=document.getElementById('slots-grid');grid.innerHTML='';
+  Object.keys(slots).forEach(key=>{
+    const s=slots[key],state=getState(key),fill=Math.min(s.count/MAX,1)*100;
+    let st='wolny';if(s.manualBlocked)st='zablokowany';else if(s.count>=MAX)st='pełny';else if(s.count>0)st=`${s.count}/${MAX}`;
+    const c=document.createElement('div');c.className=`slot-card ${state}`;
+    c.innerHTML=`<div class="slot-time">${key}</div><div class="slot-status">${st}</div>
+      <div class="pizza-bar-wrap"><div class="pizza-bar" style="width:${fill}%"></div></div>
+      <div class="slot-count">${s.count}/${MAX} pizz</div>
+      <div class="slot-actions">${state!=='blocked'
+        ?`<button class="btn-block" onclick="manualBlock('${key}')">🔒 Blokuj</button><button class="btn-add" onclick="openModal('${key}')">📞 Tel</button>`
+        :`<button class="btn-unblock" onclick="unblock('${key}')">🔓 Odblokuj</button>`}</div>`;
+    grid.appendChild(c);
+  });
+  renderOrders();
+}
+
+function renderOrders(){
+  const list=document.getElementById('orders-list'),badge=document.getElementById('order-count-badge');
+  const active=orders.filter(o=>!o.done);badge.textContent=active.length?`${active.length} aktywnych`:'';
+  if(!orders.length){list.innerHTML='<div style="color:var(--warm-gray);font-size:.85rem;font-family:\'DM Mono\'">Brak zamówień. Czekamy... 🕐</div>';return}
+  list.innerHTML='';
+  [...orders].sort((a,b)=>a.time.localeCompare(b.time)).forEach(o=>{
+    const tq=o.items.reduce((s,i)=>s+i.qty,0),tp=o.items.reduce((s,i)=>s+i.qty*i.price,0);
+    const c=document.createElement('div');c.className=`order-card ${o.done?'done':''}`;
+    c.innerHTML=`<div class="order-top">
+      <div class="order-time-badge">${o.time}</div>
+      <div class="order-info"><div class="order-name">${o.name}</div><div class="order-detail">${o.phone}${tp?' · '+tp.toFixed(2)+' PLN':''}</div></div>
+      <div class="order-pizza-count">${tq}🍕</div>
+      ${!o.done?`<button class="btn-done" onclick="markDone('${o.id}')">✓ Gotowe</button>`:'<div style="font-size:.7rem;color:var(--sage);font-family:\'DM Mono\'">✓ wydano</div>'}
+    </div><div class="order-items">${o.items.map(i=>`<span class="order-item-tag">${i.qty}× ${i.name}</span>`).join('')}</div>`;
+    list.appendChild(c);
+  });
+}
+
+async function manualBlock(k){
+  slots[k].manualBlocked=true;
+  if(useSupabase){const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;await supabase.from('blocked_slots').insert({slot_time:k,date:dateStr})}
+  renderPizzerPanel();
+}
+async function unblock(k){
+  slots[k].manualBlocked=false;
+  if(useSupabase){const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;await supabase.from('blocked_slots').delete().eq('slot_time',k).eq('date',dateStr)}
+  renderPizzerPanel();
+}
+async function markDone(id){
+  const o=orders.find(x=>String(x.id)===String(id));if(o)o.done=true;
+  if(useSupabase)await supabase.from('orders').update({done:true}).eq('id',id);
+  renderOrders();
+}
+
+// Dźwięk — TYLKO U PIZZERA
+function playOrderSound(){
+  try{const ctx=new(window.AudioContext||window.webkitAudioContext)();[523,659,784,1047].forEach((freq,i)=>{const osc=ctx.createOscillator(),gain=ctx.createGain();osc.connect(gain);gain.connect(ctx.destination);osc.type='sine';osc.frequency.value=freq;gain.gain.setValueAtTime(0,ctx.currentTime+i*.12);gain.gain.linearRampToValueAtTime(.4,ctx.currentTime+i*.12+.02);gain.gain.exponentialRampToValueAtTime(.001,ctx.currentTime+i*.12+.35);osc.start(ctx.currentTime+i*.12);osc.stop(ctx.currentTime+i*.12+.35)})}catch(e){}
+}
+function showAlert(text){
+  const el=document.getElementById('new-order-alert');document.getElementById('alert-text').textContent=text;
+  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),5000);
+  playOrderSound();
+}
+
+// MODAL tel
+function openModal(key){
+  modalSlot=key;modalCart={};modalExtraSlots=0;
+  document.getElementById('modal-slot-time').textContent=key;
+  document.getElementById('modal-rem-text').textContent=`miejsce na ${MAX-slots[key].count} pizze`;
+  renderModalMenu();document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('show')}
+function modalCartTotal(){return Object.values(modalCart).reduce((a,b)=>a+b,0)}
+function slotsNeeded(){const n=modalCartTotal();if(!n)return 0;const ff=MAX-slots[modalSlot].count;return 1+Math.ceil(Math.max(0,n-ff)/MAX)}
+function affectedSlots(){const keys=Object.keys(slots),si=keys.indexOf(modalSlot);return keys.slice(si,si+slotsNeeded()+modalExtraSlots)}
+function renderModalMenu(){
+  const list=document.getElementById('modal-menu-list');list.innerHTML='';
+  PIZZA.forEach(item=>{
+    const qty=modalCart[item.id]||0;
+    const el=document.createElement('div');
+    el.style.cssText=`display:flex;align-items:center;gap:.6rem;border:2px solid ${qty>0?'var(--rust)':'var(--light-gray)'};border-radius:10px;padding:.55rem .75rem;cursor:pointer;background:${qty>0?'#FFF8F6':'white'};transition:all .15s`;
+    el.innerHTML=`<div style="width:20px;height:20px;min-width:20px;border-radius:50%;border:2px solid ${qty>0?'var(--rust)':'var(--light-gray)'};background:${qty>0?'var(--rust)':'white'};display:flex;align-items:center;justify-content:center;font-size:.7rem;color:white">${qty>0?'✓':''}</div>
+      <div style="flex:1"><div style="font-size:.82rem;font-weight:500">${item.name}</div><div style="font-size:.65rem;color:var(--warm-gray)">${item.price.toFixed(2)} PLN</div></div>
+      ${qty>0?`<div style="display:flex;align-items:center;gap:.4rem">
+        <button onclick="mChQty('${item.id}',-1,event)" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--light-gray);background:white;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">−</button>
+        <span style="font-family:'Playfair Display',serif;font-size:1rem;font-weight:700;min-width:1.2rem;text-align:center">${qty}</span>
+        <button onclick="mChQty('${item.id}',1,event)" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--light-gray);background:white;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">+</button>
+      </div>`:''}`;
+    el.onclick=(e)=>{if(!e.target.closest('button'))mToggle(item.id)};
+    list.appendChild(el);
+  });
+  renderModalCart();
+}
+function mToggle(id){if(modalCart[id])delete modalCart[id];else modalCart[id]=1;modalExtraSlots=0;renderModalMenu()}
+function mChQty(id,d,e){e.stopPropagation();const nq=(modalCart[id]||0)+d;if(nq<=0)delete modalCart[id];else modalCart[id]=nq;modalExtraSlots=0;renderModalMenu()}
+function changeExtraSlots(d){modalExtraSlots=Math.max(0,Math.min(8,modalExtraSlots+d));renderModalCart()}
+function renderModalCart(){
+  const summary=document.getElementById('modal-cart-summary'),rows=document.getElementById('modal-cart-rows'),btn=document.getElementById('btn-modal-confirm');
+  const items=Object.entries(modalCart).filter(([,q])=>q>0);
+  if(!items.length){summary.style.display='none';btn.disabled=true;btn.textContent='Dodaj →';return}
+  summary.style.display='block';
+  const total=items.reduce((s,[id,q])=>{const m=PIZZA.find(x=>x.id===id);return s+(m?m.price*q:0)},0);
+  const n=modalCartTotal(),affected=affectedSlots(),needed=affected.length;
+  rows.innerHTML=items.map(([id,q])=>{const m=PIZZA.find(x=>x.id===id);return m?`<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:.15rem 0"><span>${q}× ${m.name}</span><span>${(m.price*q).toFixed(2)} PLN</span></div>`:''}).join('')+
+    `<div style="display:flex;justify-content:space-between;font-size:.85rem;font-weight:700;border-top:1px solid var(--light-gray);margin-top:.4rem;padding-top:.4rem"><span>Razem</span><span>${total.toFixed(2)} PLN</span></div>
+    <div style="margin-top:.75rem;padding:.65rem;background:white;border-radius:8px;border:2px solid var(--gold)">
+      <div style="font-size:.68rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--warm-gray);margin-bottom:.3rem">Zajęte sloty (${needed})</div>
+      <div style="font-size:.82rem;font-weight:500;margin-bottom:.4rem">${affected.join(' · ')}</div>
+      <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.4rem">
+        <span style="font-size:.7rem;color:var(--warm-gray);font-family:'DM Mono',monospace">Ekstra sloty:</span>
+        <button onclick="changeExtraSlots(-1)" ${modalExtraSlots<=0?'disabled':''} style="width:24px;height:24px;border-radius:50%;border:2px solid var(--light-gray);background:white;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">−</button>
+        <span style="font-family:'DM Mono',monospace;font-size:.85rem;font-weight:500">${modalExtraSlots>0?'+'+modalExtraSlots:'0'}</span>
+        <button onclick="changeExtraSlots(1)" style="width:24px;height:24px;border-radius:50%;border:2px solid var(--light-gray);background:white;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">+</button>
+      </div>
+    </div>`;
+  btn.disabled=false;btn.textContent=`Zablokuj ${needed} slot${needed===1?'':'y'} →`;
+}
+async function confirmAddPizzas(){
+  const items=Object.entries(modalCart).filter(([,q])=>q>0).map(([id,qty])=>{const m=PIZZA.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
+  const n=modalCartTotal(),affected=affectedSlots();
+  let rem=n;const keys=Object.keys(slots),si=keys.indexOf(modalSlot);
+  affected.forEach(key=>{if(!slots[key])return;const free=MAX-slots[key].count;const fill=Math.min(free,rem);slots[key].count+=fill;rem-=fill});
+  for(let i=0;i<modalExtraSlots;i++){const k=keys[si+slotsNeeded()+i];if(k&&slots[k])slots[k].manualBlocked=true}
+  if(useSupabase){
+    const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+    await supabase.from('orders').insert({name:'📞 Telefoniczne',phone:'—',pickup_time:modalSlot,date:dateStr,items,total:items.reduce((s,i)=>s+i.qty*i.price,0),source:'tel',done:false,cancelled:false,created_at:new Date().toISOString()});
+  } else {
+    orders.push({id:Date.now(),name:'📞 Telefoniczne',phone:'—',time:modalSlot,done:false,source:'tel',items});
+  }
+  closeModal();renderPizzerPanel();
+  showAlert(`📞 ${n} szt o ${modalSlot} → ${affected.join(', ')}`);
+}
+
+// STATS
+function setStatsPeriod(p,btn){statsPeriod=p;document.querySelectorAll('.date-tab').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderStats()}
+function renderStats(){
+  const ord=statsPeriod==='day'?orders:[...orders,...historyData.flatMap((d,i)=>[
+    {id:'h'+i,name:'(historia)',phone:'',time:'12:00',done:true,source:'online',items:[{name:'Margherita',qty:Math.floor(d.online/2),price:32},{name:'Capricciosa',qty:d.online-Math.floor(d.online/2),price:38}]},
+    {id:'ht'+i,name:'📞',phone:'',time:'13:00',done:true,source:'tel',items:[{name:'Hawaii',qty:d.tel,price:38}]}
+  ])].slice(statsPeriod==='month'?-40:-9999);
+  const tq=ord.reduce((s,o)=>s+o.items.reduce((a,i)=>a+i.qty,0),0);
+  const trev=ord.reduce((s,o)=>s+o.items.reduce((a,i)=>a+i.qty*i.price,0),0);
+  const onQ=ord.filter(o=>o.source==='online').reduce((s,o)=>s+o.items.reduce((a,i)=>a+i.qty,0),0);
+  const telQ=ord.filter(o=>o.source==='tel').reduce((s,o)=>s+o.items.reduce((a,i)=>a+i.qty,0),0);
+  document.getElementById('stats-kpi-grid').innerHTML=`
+    <div class="kpi-card accent"><div class="kpi-label">Przychód</div><div class="kpi-value">${trev.toFixed(0)} PLN</div><div class="kpi-sub">${statsPeriod==='day'?'dziś':statsPeriod==='month'?'ten miesiąc':'łącznie'}</div></div>
+    <div class="kpi-card"><div class="kpi-label">Sprzedano</div><div class="kpi-value">${tq}</div><div class="kpi-sub">${ord.length} zamówień</div></div>
+    <div class="kpi-card"><div class="kpi-label">Śr. zamówienie</div><div class="kpi-value">${ord.length?Math.round(trev/ord.length):0} PLN</div><div class="kpi-sub">na zamówienie</div></div>
+    <div class="kpi-card"><div class="kpi-label">Online / Tel</div><div class="kpi-value">${onQ}/${telQ}</div><div class="kpi-sub">sztuk</div></div>`;
+  const cnt={};ord.forEach(o=>o.items.forEach(i=>{cnt[i.name]=(cnt[i.name]||0)+i.qty}));
+  const sorted=Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,8),mx=sorted[0]?sorted[0][1]:1;
+  document.getElementById('stats-ranking').innerHTML=sorted.map(([name,count],i)=>`<div class="ranking-item"><div class="rank-num">#${i+1}</div><div class="rank-name">${name}</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:${Math.round(count/mx*100)}%"></div></div><div class="rank-count">${count}</div></div>`).join('');
+  const hcnt={};const {start,endH}=getHours();for(let h=start;h<=endH;h++)hcnt[pad(h)]=0;
+  ord.forEach(o=>{const h=o.time.split(':')[0];hcnt[h]=(hcnt[h]||0)+o.items.reduce((a,i)=>a+i.qty,0)});
+  const hours=Object.entries(hcnt),mxH=Math.max(...hours.map(([,v])=>v),1);
+  const peakH=hours.reduce((a,b)=>b[1]>a[1]?b:a)[0];
+  document.getElementById('stats-hours').innerHTML=hours.map(([h,v])=>`<div class="hour-bar-wrap"><div class="hour-bar ${h===peakH?'peak':''}" style="height:${Math.max(4,Math.round(v/mxH*72))}px"></div></div>`).join('');
+  document.getElementById('stats-hour-labels').innerHTML=hours.map(([h])=>`<div class="hour-label">${h}</div>`).join('');
+  const pct=tq?Math.round(onQ/tq*100):0;
+  document.getElementById('stats-channels').innerHTML=`<div class="channel-row"><div style="font-size:1.4rem">🌐</div><div class="channel-info"><div class="channel-name">Online</div><div class="channel-bar-wrap"><div class="channel-bar" style="width:${pct}%;background:var(--sage)"></div></div></div><div class="channel-count" style="color:var(--sage)">${onQ} · ${pct}%</div></div><div class="channel-row"><div style="font-size:1.4rem">📞</div><div class="channel-info"><div class="channel-name">Telefoniczne</div><div class="channel-bar-wrap"><div class="channel-bar" style="width:${100-pct}%;background:var(--rust)"></div></div></div><div class="channel-count" style="color:var(--rust)">${telQ} · ${100-pct}%</div></div>`;
+  const histRows=statsPeriod==='day'?`<tr><td>${fmtDate(today)}</td><td>${onQ}</td><td>${telQ}</td><td>${trev.toFixed(0)} PLN</td></tr>`:[...historyData].reverse().slice(0,30).map(d=>`<tr><td>${d.date}</td><td>${d.online}</td><td>${d.tel}</td><td>${d.revenue} PLN</td></tr>`).join('');
+  document.getElementById('stats-history').innerHTML=`<tr><th>Data</th><th>Online</th><th>Telefon</th><th>Przychód</th></tr>${histRows}`;
+}
+
+function switchView(view,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`view-${view}`).classList.add('active');btn.classList.add('active');
+  if(view==='stats')renderStats();
+}
+
+initSlots();
+</script>
+</body>
+</html>
