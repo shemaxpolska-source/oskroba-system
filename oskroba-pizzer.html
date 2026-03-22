@@ -1,11 +1,12 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:;">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Oskroba – Panel Pizzera</title>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{--cream:#F5F0E8;--charcoal:#1A1A1A;--rust:#C4391A;--rust-light:#E8503A;--sage:#4A6741;--gold:#D4A843;--warm-gray:#8C8070;--light-gray:#E8E2D8}
@@ -107,6 +108,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .btn-modal-confirm:hover{background:var(--rust-light)}.btn-modal-confirm:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:700px){.pizzer-panel,.stats-panel{padding:1rem}.slots-grid{grid-template-columns:repeat(3,1fr)}.stats-grid{grid-template-columns:1fr}}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 </head>
 <body>
 <header class="header">
@@ -177,7 +179,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 const SUPABASE_URL = 'https://sjpmmuvqvhidixawvjrn.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcG1tdXZxdmhpZGl4YXd2anJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjMzNjUsImV4cCI6MjA4OTY5OTM2NX0.TqUAb1pftQKpCcGL-GMQf8E3rdix3dKh9cMMve9s238';
 let supabase=null,useSupabase=false;
-try{if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'){supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);useSupabase=true;}}catch(e){}
+function initSupabase(){
+  try{
+    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'&&window.supabase){
+      supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+      useSupabase=true;
+    }
+  }catch(e){console.log('Supabase init failed, running in demo mode',e);}
+}
 
 const PIZZA=[
   {id:'margherita', name:'Margherita',        price:32,  desc:'sos pomidorowy Pelati, mozzarella fior di latte, świeża bazylia'},
@@ -213,6 +222,7 @@ const historyData=[];
 for(let i=29;i>=1;i--){const d=new Date(today);d.setDate(d.getDate()-i);const op=Math.floor(Math.random()*18)+4,tp=Math.floor(Math.random()*12)+2;historyData.push({date:fmtDate(d),online:op,tel:tp,revenue:(op+tp)*37+Math.floor(Math.random()*80)})}
 
 async function initSlots(){
+  initSupabase();
   slots={};
   const {start,endH,endM}=getHours();
   for(let h=start;h<=endH;h++)for(let m=0;m<60;m+=STEP){if(h===endH&&m>endM)break;slots[`${pad(h)}:${pad(m)}`]={count:0,manualBlocked:false,id:null}}
