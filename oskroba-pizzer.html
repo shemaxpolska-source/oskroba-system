@@ -498,6 +498,15 @@ function switchView(view,btn){
 // Start app
 // Ładuj Supabase dynamicznie, potem uruchom app
 initSlots();
+
+// AUTO-RESET o północy — przeładuj stronę na nowy dzień
+(function scheduleMidnightReset(){
+  const now=new Date();
+  const midnight=new Date(now.getFullYear(),now.getMonth(),now.getDate()+1,0,0,5);
+  const ms=midnight-now;
+  console.log('Auto-reset za',Math.round(ms/60000),'min (o północy)');
+  setTimeout(()=>{ location.reload(); }, ms);
+})();
 </script>
 </body>
 </html>
