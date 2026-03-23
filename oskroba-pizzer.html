@@ -108,7 +108,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .btn-modal-confirm:hover{background:var(--rust-light)}.btn-modal-confirm:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:700px){.pizzer-panel,.stats-panel{padding:1rem}.slots-grid{grid-template-columns:repeat(3,1fr)}.stats-grid{grid-template-columns:1fr}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 </head>
 <body>
 <header class="header">
@@ -471,7 +471,14 @@ function switchView(view,btn){
 
 
 // Start app
-document.addEventListener('DOMContentLoaded', initSlots);
+// Ładuj Supabase dynamicznie, potem uruchom app
+(function(){
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  s.onload = function(){ initSlots(); };
+  s.onerror = function(){ initSlots(); }; // fallback bez Supabase
+  document.head.appendChild(s);
+})();
 </script>
 </body>
 </html>

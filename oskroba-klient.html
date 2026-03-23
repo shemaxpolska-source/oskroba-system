@@ -71,7 +71,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .loading-bar.show{display:block}
 @keyframes loading{0%{background-position:-200px 0}100%{background-position:200px 0}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
 </head>
 <body>
 <div class="loading-bar" id="loading-bar"></div>
@@ -305,7 +305,14 @@ function resetOrder(){
   document.getElementById('success-screen').classList.remove('show');
   }
 
-document.addEventListener('DOMContentLoaded', initSlots);
+// Ładuj Supabase dynamicznie, potem uruchom app
+(function(){
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  s.onload = function(){ initSlots(); };
+  s.onerror = function(){ initSlots(); }; // fallback bez Supabase
+  document.head.appendChild(s);
+})();
 </script>
 </body>
 </html>
