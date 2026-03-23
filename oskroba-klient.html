@@ -148,27 +148,22 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 
 <script>
 // ══ SUPABASE CONFIG ══
-// TODO: Wklej swoje dane z Supabase po założeniu projektu
 const SUPABASE_URL = 'https://sjpmmuvqvhidixawvjrn.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcG1tdXZxdmhpZGl4YXd2anJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjMzNjUsImV4cCI6MjA4OTY5OTM2NX0.TqUAb1pftQKpCcGL-GMQf8E3rdix3dKh9cMMve9s238';
-let supabase = null;
+// WAŻNE: NIE deklarujemy "let supabase" — bo przesłania globalną z UMD bundle!
+let sbClient = null;
 let useSupabase = false;
 function initSupabase(){
   try{
-    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'){
-      // supabase UMD exposes: supabase.createClient (var supabase = ...)
-      const createFn = (typeof supabase !== 'undefined' && supabase.createClient)
-                    || (window.supabase && window.supabase.createClient);
-      if(createFn){
-        const client = createFn(SUPABASE_URL, SUPABASE_KEY);
-        // rename to avoid conflict with UMD global
-        window._sb = client;
-        supabase = client;
-        useSupabase = true;
-        console.log('✅ Supabase OK');
-      }
+    // window.supabase to obiekt z UMD bundle (var supabase = ...)
+    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL' && window.supabase && window.supabase.createClient){
+      sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      useSupabase = true;
+      console.log('✅ Supabase połączono!');
+    } else {
+      console.warn('⚠️ Supabase niedostępne:', {url: SUPABASE_URL, lib: typeof window.supabase});
     }
-  }catch(e){console.log('Supabase błąd:',e);}
+  }catch(e){console.error('❌ Supabase błąd:',e);}
 }
 
 // ══ MENU ══
@@ -197,7 +192,7 @@ const KANAPKI=[
 ];
 const MENU=[...PIZZA,...KANAPKI];
 const MAX=2,STEP=5;
-const today=new Date();
+let today=new Date();
 let slots={},selectedTime=null,cart={};
 
 function getHours(){
@@ -223,16 +218,33 @@ async function initSlots(){
   // Wczytaj zajętość z Supabase jeśli dostępne
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-    const {data}=await supabase.from('orders').select('pickup_time,items').eq('date',dateStr).eq('cancelled',false);
+    const {data}=await sbClient.from('orders').select('pickup_time,items').eq('date',dateStr).eq('cancelled',false);
     if(data) data.forEach(o=>{
       const qty=o.items.reduce((s,i)=>s+i.qty,0);
       if(slots[o.pickup_time]) slots[o.pickup_time].count=Math.min(slots[o.pickup_time].count+qty,MAX);
     });
-    const {data:blocked}=await supabase.from('blocked_slots').select('slot_time').eq('date',dateStr);
+    const {data:blocked}=await sbClient.from('blocked_slots').select('slot_time').eq('date',dateStr);
     if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
+
+    // REALTIME — odświeżaj sloty gdy pizzer zablokuje/odblokuje lub pojawi się nowe zamówienie
+    sbClient.channel('client-live')
+      .on('postgres_changes',{event:'*',schema:'public',table:'blocked_slots'},()=>refreshSlots())
+      .on('postgres_changes',{event:'*',schema:'public',table:'orders'},()=>refreshSlots())
+      .subscribe();
   }
   renderCustomerGrid();
   renderMenuList();
+}
+// Lekkie odświeżanie slotów bez przeładowania całej strony
+async function refreshSlots(){
+  if(!useSupabase)return;
+  const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  Object.keys(slots).forEach(k=>{slots[k].count=0;slots[k].manualBlocked=false});
+  const {data}=await sbClient.from('orders').select('pickup_time,items').eq('date',dateStr).eq('cancelled',false);
+  if(data) data.forEach(o=>{const qty=o.items.reduce((s,i)=>s+i.qty,0);if(slots[o.pickup_time])slots[o.pickup_time].count=Math.min(slots[o.pickup_time].count+qty,MAX)});
+  const {data:blocked}=await sbClient.from('blocked_slots').select('slot_time').eq('date',dateStr);
+  if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
+  renderCustomerGrid();
 }
 
 function getState(k){const s=slots[k];if(!s)return'unknown';if(s.manualBlocked||s.count>=MAX)return'blocked';if(s.count>0)return'partial';return'available'}
@@ -299,18 +311,20 @@ function updateBtn(){
 
 async function placeOrder(){
   const name=document.getElementById('inp-name').value.trim(),phone=document.getElementById('inp-phone').value.trim();
-  if(!name||!phone){alert('Podaj imię i telefon 🙏');return}
+  if(!name||!phone){alert('Podaj imię i telefon');return}
+  // Walidacja telefonu — min 9 cyfr
+  const phoneDigits=phone.replace(/\D/g,'');
+  if(phoneDigits.length<9){alert('Podaj poprawny numer telefonu (min. 9 cyfr)');return}
   if(!selectedTime||!cartTotal())return;
   const items=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{const m=MENU.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
   const tp=items.reduce((s,i)=>s+i.qty*i.price,0);
-  const n=cartTotal();
 
   document.getElementById('loading-bar').classList.add('show');
   document.getElementById('btn-order').disabled=true;
 
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-    await supabase.from('orders').insert({
+    const {error}=await sbClient.from('orders').insert({
       name, phone,
       pickup_time: selectedTime,
       date: dateStr,
@@ -321,13 +335,20 @@ async function placeOrder(){
       cancelled: false,
       created_at: new Date().toISOString()
     });
+    if(error){
+      document.getElementById('loading-bar').classList.remove('show');
+      document.getElementById('btn-order').disabled=false;
+      alert('Przepraszamy, wystąpił błąd. Spróbuj ponownie lub zadzwoń.');
+      console.error('Supabase insert error:',error);
+      return;
+    }
   }
 
   document.getElementById('loading-bar').classList.remove('show');
   document.getElementById('order-form').style.display='none';
   document.getElementById('success-screen').classList.add('show');
   document.getElementById('success-items').innerHTML=items.map(i=>`<div class="cart-row"><span>${i.qty}× ${i.name}</span><span>${(i.qty*i.price).toFixed(2)} PLN</span></div>`).join('')+`<div class="cart-row cart-total"><span>Razem</span><span>${tp.toFixed(2)} PLN</span></div>`;
-  document.getElementById('success-detail').innerHTML=`Odbiór o <strong>${selectedTime}</strong> · ul. Lubelska 78, Wiązowna<br>Płatność gotówką lub kartą przy odbiorze 🍕`;
+  document.getElementById('success-detail').innerHTML=`Odbiór o <strong>${selectedTime}</strong> · ul. Lubelska 78, Wiązowna<br>Płatność gotówką lub kartą przy odbiorze`;
 }
 function resetOrder(){
   selectedTime=null;cart={};

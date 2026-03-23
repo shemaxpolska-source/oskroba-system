@@ -200,23 +200,18 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
 // ══ SUPABASE CONFIG ══
 const SUPABASE_URL = 'https://sjpmmuvqvhidixawvjrn.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcG1tdXZxdmhpZGl4YXd2anJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxMjMzNjUsImV4cCI6MjA4OTY5OTM2NX0.TqUAb1pftQKpCcGL-GMQf8E3rdix3dKh9cMMve9s238';
-let supabase=null,useSupabase=false;
+// WAŻNE: NIE deklarujemy "let supabase" — bo przesłania globalną z UMD bundle!
+let sbClient=null,useSupabase=false;
 function initSupabase(){
   try{
-    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'){
-      // supabase UMD exposes: supabase.createClient (var supabase = ...)
-      const createFn = (typeof supabase !== 'undefined' && supabase.createClient)
-                    || (window.supabase && window.supabase.createClient);
-      if(createFn){
-        const client = createFn(SUPABASE_URL, SUPABASE_KEY);
-        // rename to avoid conflict with UMD global
-        window._sb = client;
-        supabase = client;
-        useSupabase = true;
-        console.log('✅ Supabase OK');
-      }
+    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL' && window.supabase && window.supabase.createClient){
+      sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      useSupabase = true;
+      console.log('✅ Supabase połączono!');
+    } else {
+      console.warn('⚠️ Supabase niedostępne:', {url: SUPABASE_URL, lib: typeof window.supabase});
     }
-  }catch(e){console.log('Supabase błąd:',e);}
+  }catch(e){console.error('❌ Supabase błąd:',e);}
 }
 
 const PIZZA=[
@@ -240,8 +235,9 @@ const PIZZA=[
   {id:'kan_parma',  name:'Kanapka – Parma',   price:15.9,desc:'szynka parmeńska, Pelati, pomidorki cherry'},
   {id:'kan_cotto',  name:'Kanapka – Szynka',  price:15.9,desc:'szynka cotto, rukola, pomidory malinowe'},
 ];
+const MENU=[...PIZZA];
 const MAX=2,STEP=5;
-const today=new Date();
+let today=new Date();
 let slots={},orders=[],statsPeriod='day',modalSlot=null,modalCart={},modalExtraSlots=0;
 
 function getHours(){const dow=today.getDay();if(dow===0)return{start:9,endH:17,endM:30,label:'Niedziela 9:00–17:30'};if(dow===6)return{start:9,endH:18,endM:0,label:'Sobota 9:00–18:00'};return{start:9,endH:19,endM:30,label:'Pon–Pt 9:00–19:30'}}
@@ -264,42 +260,39 @@ async function initSlots(){
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
     // Wczytaj zamówienia
-    const {data:ordData}=await supabase.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
+    const {data:ordData}=await sbClient.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
     if(ordData){
       orders=ordData.map(o=>({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items}));
       ordData.forEach(o=>{const qty=o.items.reduce((s,i)=>s+i.qty,0);if(slots[o.pickup_time])slots[o.pickup_time].count=Math.min((slots[o.pickup_time].count||0)+qty,MAX*2)});
     }
     // Wczytaj blokady
-    const {data:blData}=await supabase.from('blocked_slots').select('*').eq('date',dateStr);
+    const {data:blData}=await sbClient.from('blocked_slots').select('*').eq('date',dateStr);
     if(blData)blData.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
 
-    // REALTIME — nasłuchuj nowych zamówień
-    // REALTIME — nasłuchuj nowych zamówień
-    const channel = supabase
-      .channel('db-orders')
+    // REALTIME — nasłuchuj nowych zamówień (z ochroną przed duplikatami)
+    sbClient.channel('db-orders')
       .on('postgres_changes',
         {event:'INSERT', schema:'public', table:'orders'},
         (payload)=>{
           const o=payload.new;
-          if(o.date===dateStr){
+          // Sprawdź czy to zamówienie już nie jest w liście (ochrona przed duplikatami)
+          if(o.date===dateStr && !orders.some(ex=>String(ex.id)===String(o.id))){
             const qty=o.items.reduce((s,i)=>s+i.qty,0);
             if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
             orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
             renderPizzerPanel();
-            showAlert(`🛒 ${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}×${i.name}`).join(', ')}`);
+            showAlert(`${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}x${i.name}`).join(', ')}`);
           }
         }
       )
       .subscribe((status)=>{
         console.log('Realtime status:', status);
-        if(status==='SUBSCRIBED'){
-          console.log('✅ Realtime działa!');
-        }
+        if(status==='SUBSCRIBED') console.log('Realtime dziala!');
       });
 
     // POLLING BACKUP — odświeżaj co 15 sekund na wypadek problemów z Realtime
     setInterval(async()=>{
-      const {data:newOrders}=await supabase.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
+      const {data:newOrders}=await sbClient.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
       if(newOrders){
         const existingIds=new Set(orders.map(o=>String(o.id)));
         const freshOrders=newOrders.filter(o=>!existingIds.has(String(o.id)));
@@ -310,7 +303,7 @@ async function initSlots(){
             orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
           });
           renderPizzerPanel();
-          showAlert(`🔄 ${freshOrders.length} nowe zamówienie!`);
+          showAlert(`${freshOrders.length} nowe zamowienie!`);
         }
       }
     }, 15000);
@@ -367,17 +360,17 @@ function renderOrders(){
 
 async function manualBlock(k){
   slots[k].manualBlocked=true;
-  if(useSupabase){const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;await supabase.from('blocked_slots').insert({slot_time:k,date:dateStr})}
+  if(useSupabase){const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;await sbClient.from('blocked_slots').insert({slot_time:k,date:dateStr})}
   renderPizzerPanel();
 }
 async function unblock(k){
   slots[k].manualBlocked=false;
-  if(useSupabase){const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;await supabase.from('blocked_slots').delete().eq('slot_time',k).eq('date',dateStr)}
+  if(useSupabase){const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;await sbClient.from('blocked_slots').delete().eq('slot_time',k).eq('date',dateStr)}
   renderPizzerPanel();
 }
 async function markDone(id){
   const o=orders.find(x=>String(x.id)===String(id));if(o)o.done=true;
-  if(useSupabase)await supabase.from('orders').update({done:true}).eq('id',id);
+  if(useSupabase)await sbClient.from('orders').update({done:true}).eq('id',id);
   renderOrders();
 }
 
@@ -404,6 +397,7 @@ function slotsNeeded(){const n=modalCartTotal();if(!n)return 0;const ff=MAX-slot
 function affectedSlots(){const keys=Object.keys(slots),si=keys.indexOf(modalSlot);return keys.slice(si,si+slotsNeeded()+modalExtraSlots)}
 function renderModalMenu(){
   const list=document.getElementById('modal-menu-list');list.innerHTML='';
+  // Pokaż pełne menu (pizza + kanapki) w modalu telefonicznym
   PIZZA.forEach(item=>{
     const qty=modalCart[item.id]||0;
     const el=document.createElement('div');
@@ -428,9 +422,10 @@ function renderModalCart(){
   const items=Object.entries(modalCart).filter(([,q])=>q>0);
   if(!items.length){summary.style.display='none';btn.disabled=true;btn.textContent='Dodaj →';return}
   summary.style.display='block';
-  const total=items.reduce((s,[id,q])=>{const m=PIZZA.find(x=>x.id===id);return s+(m?m.price*q:0)},0);
+  const allMenu=[...PIZZA];
+  const total=items.reduce((s,[id,q])=>{const m=allMenu.find(x=>x.id===id);return s+(m?m.price*q:0)},0);
   const n=modalCartTotal(),affected=affectedSlots(),needed=affected.length;
-  rows.innerHTML=items.map(([id,q])=>{const m=PIZZA.find(x=>x.id===id);return m?`<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:.15rem 0"><span>${q}× ${m.name}</span><span>${(m.price*q).toFixed(2)} PLN</span></div>`:''}).join('')+
+  rows.innerHTML=items.map(([id,q])=>{const m=allMenu.find(x=>x.id===id);return m?`<div style="display:flex;justify-content:space-between;font-size:.8rem;padding:.15rem 0"><span>${q}× ${m.name}</span><span>${(m.price*q).toFixed(2)} PLN</span></div>`:''}).join('')+
     `<div style="display:flex;justify-content:space-between;font-size:.85rem;font-weight:700;border-top:1px solid var(--light-gray);margin-top:.4rem;padding-top:.4rem"><span>Razem</span><span>${total.toFixed(2)} PLN</span></div>
     <div style="margin-top:.75rem;padding:.65rem;background:white;border-radius:8px;border:2px solid var(--gold)">
       <div style="font-size:.68rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.06em;color:var(--warm-gray);margin-bottom:.3rem">Zajęte sloty (${needed})</div>
@@ -445,14 +440,15 @@ function renderModalCart(){
   btn.disabled=false;btn.textContent=`Zablokuj ${needed} slot${needed===1?'':'y'} →`;
 }
 async function confirmAddPizzas(){
-  const items=Object.entries(modalCart).filter(([,q])=>q>0).map(([id,qty])=>{const m=PIZZA.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
+  const allM=[...PIZZA];
+  const items=Object.entries(modalCart).filter(([,q])=>q>0).map(([id,qty])=>{const m=allM.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
   const n=modalCartTotal(),affected=affectedSlots();
   let rem=n;const keys=Object.keys(slots),si=keys.indexOf(modalSlot);
   affected.forEach(key=>{if(!slots[key])return;const free=MAX-slots[key].count;const fill=Math.min(free,rem);slots[key].count+=fill;rem-=fill});
   for(let i=0;i<modalExtraSlots;i++){const k=keys[si+slotsNeeded()+i];if(k&&slots[k])slots[k].manualBlocked=true}
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-    await supabase.from('orders').insert({name:'📞 Telefoniczne',phone:'—',pickup_time:modalSlot,date:dateStr,items,total:items.reduce((s,i)=>s+i.qty*i.price,0),source:'tel',done:false,cancelled:false,created_at:new Date().toISOString()});
+    await sbClient.from('orders').insert({name:'📞 Telefoniczne',phone:'—',pickup_time:modalSlot,date:dateStr,items,total:items.reduce((s,i)=>s+i.qty*i.price,0),source:'tel',done:false,cancelled:false,created_at:new Date().toISOString()});
   } else {
     orders.push({id:Date.now(),name:'📞 Telefoniczne',phone:'—',time:modalSlot,done:false,source:'tel',items});
   }
