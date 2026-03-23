@@ -133,9 +133,15 @@ let supabase = null;
 let useSupabase = false;
 function initSupabase(){
   try{
-    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'&&window.supabase){
-      supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-      useSupabase=true;
+    // supabase-js v2 exposes createClient directly on window.supabase
+    const sb = window.supabase || window.supabaseJs;
+    const createClient = sb?.createClient || window.createClient;
+    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL' && createClient){
+      supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      useSupabase = true;
+      console.log('✅ Supabase połączony!');
+    } else {
+      console.log('⚠️ Supabase niedostępny, tryb offline');
     }
   }catch(e){console.log('Supabase init failed',e);}
 }
@@ -308,9 +314,9 @@ function resetOrder(){
 // Ładuj Supabase dynamicznie, potem uruchom app
 (function(){
   var s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-  s.onload = function(){ initSlots(); };
-  s.onerror = function(){ initSlots(); }; // fallback bez Supabase
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
+  s.onload = function(){ console.log('Supabase załadowany:', typeof window.supabase); initSlots(); };
+  s.onerror = function(){ console.log('Supabase nie załadował się'); initSlots(); };
   document.head.appendChild(s);
 })();
 </script>
