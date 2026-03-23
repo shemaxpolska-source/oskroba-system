@@ -108,7 +108,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .btn-modal-confirm:hover{background:var(--rust-light)}.btn-modal-confirm:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:700px){.pizzer-panel,.stats-panel{padding:1rem}.slots-grid{grid-template-columns:repeat(3,1fr)}.stats-grid{grid-template-columns:1fr}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <header class="header">
@@ -182,10 +182,12 @@ let supabase=null,useSupabase=false;
 function initSupabase(){
   try{
     if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'&&window.supabase){
-      supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+      supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{
+        realtime:{params:{eventsPerSecond:10}}
+      });
       useSupabase=true;
     }
-  }catch(e){console.log('Supabase init failed, running in demo mode',e);}
+  }catch(e){console.log('Supabase init failed',e);}
 }
 
 const PIZZA=[
@@ -243,16 +245,46 @@ async function initSlots(){
     if(blData)blData.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
 
     // REALTIME — nasłuchuj nowych zamówień
-    supabase.channel('orders').on('postgres_changes',{event:'INSERT',schema:'public',table:'orders'},(payload)=>{
-      const o=payload.new;
-      if(o.date===dateStr){
-        const qty=o.items.reduce((s,i)=>s+i.qty,0);
-        if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
-        orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
-        renderPizzerPanel();
-        showAlert(`🛒 ${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}× ${i.name}`).join(', ')}`);
+    // REALTIME — nasłuchuj nowych zamówień
+    const channel = supabase
+      .channel('db-orders')
+      .on('postgres_changes',
+        {event:'INSERT', schema:'public', table:'orders'},
+        (payload)=>{
+          const o=payload.new;
+          if(o.date===dateStr){
+            const qty=o.items.reduce((s,i)=>s+i.qty,0);
+            if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
+            orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
+            renderPizzerPanel();
+            showAlert(`🛒 ${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}×${i.name}`).join(', ')}`);
+          }
+        }
+      )
+      .subscribe((status)=>{
+        console.log('Realtime status:', status);
+        if(status==='SUBSCRIBED'){
+          console.log('✅ Realtime działa!');
+        }
+      });
+
+    // POLLING BACKUP — odświeżaj co 15 sekund na wypadek problemów z Realtime
+    setInterval(async()=>{
+      const {data:newOrders}=await supabase.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
+      if(newOrders){
+        const existingIds=new Set(orders.map(o=>String(o.id)));
+        const freshOrders=newOrders.filter(o=>!existingIds.has(String(o.id)));
+        if(freshOrders.length>0){
+          freshOrders.forEach(o=>{
+            const qty=o.items.reduce((s,i)=>s+i.qty,0);
+            if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
+            orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
+          });
+          renderPizzerPanel();
+          showAlert(`🔄 ${freshOrders.length} nowe zamówienie!`);
+        }
       }
-    }).subscribe();
+    }, 15000);
   } else {
     // TRYB DEMO bez Supabase
     orders=[
@@ -437,7 +469,9 @@ function switchView(view,btn){
   if(view==='stats')renderStats();
 }
 
-initSlots();
+
+// Start app
+document.addEventListener('DOMContentLoaded', initSlots);
 </script>
 </body>
 </html>

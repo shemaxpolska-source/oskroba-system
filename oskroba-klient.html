@@ -71,7 +71,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .loading-bar.show{display:block}
 @keyframes loading{0%{background-position:-200px 0}100%{background-position:200px 0}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="loading-bar" id="loading-bar"></div>
@@ -303,10 +303,9 @@ function resetOrder(){
   document.getElementById('inp-name').value='';document.getElementById('inp-phone').value='';
   document.getElementById('order-form').style.display='block';
   document.getElementById('success-screen').classList.remove('show');
-  window.addEventListener("load", initSlots);
-}
+  }
 
-window.addEventListener("load", initSlots);
+document.addEventListener('DOMContentLoaded', initSlots);
 </script>
 </body>
 </html>
