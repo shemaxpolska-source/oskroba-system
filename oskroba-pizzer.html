@@ -181,17 +181,20 @@ const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 let supabase=null,useSupabase=false;
 function initSupabase(){
   try{
-    // supabase-js v2 exposes createClient directly on window.supabase
-    const sb = window.supabase || window.supabaseJs;
-    const createClient = sb?.createClient || window.createClient;
-    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL' && createClient){
-      supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-      useSupabase = true;
-      console.log('✅ Supabase połączony!');
-    } else {
-      console.log('⚠️ Supabase niedostępny, tryb offline');
+    // supabase-js UMD v2 exposes window.supabase.createClient
+    if(SUPABASE_URL!=='TWOJ_SUPABASE_URL'){
+      const createFn = (window.supabase && window.supabase.createClient)
+                    || window.createClient;
+      if(createFn){
+        supabase = createFn(SUPABASE_URL, SUPABASE_KEY);
+        useSupabase = true;
+        console.log('✅ Supabase OK');
+      } else {
+        console.warn('createClient nie znaleziony, retry za 500ms');
+        setTimeout(()=>{ initSupabase(); }, 500);
+      }
     }
-  }catch(e){console.log('Supabase init failed',e);}
+  }catch(e){console.log('Supabase błąd:',e);}
 }
 
 const PIZZA=[
@@ -478,9 +481,13 @@ function switchView(view,btn){
 // Ładuj Supabase dynamicznie, potem uruchom app
 (function(){
   var s = document.createElement('script');
-  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js';
-  s.onload = function(){ console.log('Supabase załadowany:', typeof window.supabase); initSlots(); };
-  s.onerror = function(){ console.log('Supabase nie załadował się'); initSlots(); };
+  s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+  s.onload = function(){
+    console.log('Supabase loaded, window.supabase:', typeof window.supabase);
+    // Give UMD time to register globals
+    setTimeout(initSlots, 100);
+  };
+  s.onerror = function(){ initSlots(); };
   document.head.appendChild(s);
 })();
 </script>
