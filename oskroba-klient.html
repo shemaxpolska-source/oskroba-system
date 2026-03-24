@@ -244,13 +244,26 @@ function canFitAt(startKey,totalQty){
   return{ok:remaining<=0,slotsUsed:used};
 }
 
-function findFirstAvailable(totalQty){
-  for(const key of slotKeys){
-    if(isPast(key))continue;
-    const result=canFitAt(key,totalQty);
-    if(result.ok)return{key,slotsUsed:result.slotsUsed};
+function findNearestAvailable(totalQty, preferredKey){
+  const prefIdx=slotKeys.indexOf(preferredKey);
+  if(prefIdx<0) return null;
+  for(let dist=1;dist<slotKeys.length;dist++){
+    const afterIdx=prefIdx+dist;
+    if(afterIdx<slotKeys.length){
+      const key=slotKeys[afterIdx];
+      if(!isPast(key)){const r=canFitAt(key,totalQty);if(r.ok)return{key,slotsUsed:r.slotsUsed};}
+    }
+    const beforeIdx=prefIdx-dist;
+    if(beforeIdx>=0){
+      const key=slotKeys[beforeIdx];
+      if(!isPast(key)){const r=canFitAt(key,totalQty);if(r.ok)return{key,slotsUsed:r.slotsUsed};}
+    }
   }
   return null;
+}
+function pickupTimeFromSlots(slotsUsed){
+  if(!slotsUsed||slotsUsed.length<=1) return null;
+  return slotsUsed[slotsUsed.length-1];
 }
 
 async function initSlots(){
@@ -393,12 +406,13 @@ function afterCartChange(){
   if(selectedTime&&total>0){
     const fit=canFitAt(selectedTime,total);
     if(!fit.ok){
-      const alt=findFirstAvailable(total);
+      const alt=findNearestAvailable(total, selectedTime);
       if(alt){
         selectedTime=alt.key;
         const needed=slotsNeeded(total);
         if(needed>1){
-          showBubble('Na '+total+' pizz potrzebujemy '+needed+' slot\u00f3w (po '+MAX+' pizze na slot). Automatycznie wybrano '+alt.key+' i kolejne '+(needed-1)+' termin'+(needed-1===1?'':'y')+'.');
+          const pickup=pickupTimeFromSlots(alt.slotsUsed)||alt.key;
+          showBubble(`Na ${total} pizz potrzebujemy ${needed} slot\u00f3w (po ${MAX} pizze na slot). Wybrano ${alt.key}, odbi\u00f3r o ${pickup}.`);
         }
       } else {
         selectedTime=null;
@@ -407,7 +421,8 @@ function afterCartChange(){
     } else {
       const needed=slotsNeeded(total);
       if(needed>1){
-        showBubble('Na '+total+' pizz zarezerwowano '+needed+' slot\u00f3w: '+fit.slotsUsed.join(', ')+'. Odbi\u00f3r o '+selectedTime+'.');
+        const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;
+        showBubble(`Na ${total} pizz potrzebujemy ${needed} slot\u00f3w. Zarezerwowano: ${fit.slotsUsed.join(', ')}. Odbi\u00f3r o ${pickup}.`);
       }
     }
   }
@@ -442,11 +457,12 @@ function selectTime(key){
   if(total>0){
     const fit=canFitAt(key,total);
     if(!fit.ok){
-      const alt=findFirstAvailable(total);
+      const alt=findNearestAvailable(total, key);
       if(alt){
         selectedTime=alt.key;
         const needed=slotsNeeded(total);
-        showBubble('Godzina '+key+' nie ma wystarczaj\u0105co miejsca na '+total+' pizz. Proponujemy '+alt.key+(needed>1?' (+'+(needed-1)+' kolejn'+(needed-1===1?'y':'e')+' slot'+(needed-1===1?'':'y')+')':'')+'.');
+        const pickup=pickupTimeFromSlots(alt.slotsUsed)||alt.key;
+        showBubble(`Godzina ${key} nie ma wystarczaj\u0105co miejsca na ${total} pizz. Proponujemy start o ${alt.key}${needed>1?', odbi\u00f3r o '+pickup:''}.`);
       } else {
         selectedTime=null;
         showBubble('Przepraszamy, nie mamy wystarczaj\u0105cej liczby wolnych termin\u00f3w na '+total+' pizz. Zadzwo\u0144: 509 404 904.');
@@ -455,7 +471,8 @@ function selectTime(key){
       selectedTime=key;
       const needed=slotsNeeded(total);
       if(needed>1){
-        showBubble('Na '+total+' pizz zarezerwowano '+needed+' slot\u00f3w: '+fit.slotsUsed.join(', ')+'. Odbi\u00f3r o '+key+'.');
+        const pickup=pickupTimeFromSlots(fit.slotsUsed)||key;
+        showBubble(`Na ${total} pizz zarezerwowano ${needed} slot\u00f3w: ${fit.slotsUsed.join(', ')}. Odbi\u00f3r o ${pickup}.`);
       }
     }
   } else {
@@ -472,7 +489,9 @@ function updateBtn(){
   else if(!selectedTime)btn.textContent='Zamawiam \u2014 wybierz godzin\u0119 odbioru';
   else{
     const needed=slotsNeeded(n);
-    btn.textContent=`Zamawiam ${n} szt na ${selectedTime}${needed>1?' ('+needed+' sloty)':''} \u2192`;
+    const fit=canFitAt(selectedTime,n);
+    const pickup=(fit.ok&&needed>1)?pickupTimeFromSlots(fit.slotsUsed)||selectedTime:selectedTime;
+    btn.textContent=`Zamawiam ${n} szt \u00b7 odbi\u00f3r ${pickup}${needed>1?' ('+needed+' sloty)':''} \u2192`;
   }
 }
 
@@ -489,6 +508,9 @@ async function placeOrder(){
     await refreshSlots();
     return;
   }
+  const needed=slotsNeeded(total);
+  const actualPickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;
+
   const items=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{const m=MENU.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
   const tp=items.reduce((s,i)=>s+i.qty*i.price,0);
   document.getElementById('loading-bar').classList.add('show');
@@ -497,7 +519,7 @@ async function placeOrder(){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
     const {error}=await sbClient.from('orders').insert({
       name, phone,
-      pickup_time: selectedTime,
+      pickup_time: actualPickup,
       date: dateStr,
       items: items,
       total: tp,
@@ -518,9 +540,8 @@ async function placeOrder(){
   document.getElementById('loading-bar').classList.remove('show');
   document.getElementById('order-form').style.display='none';
   document.getElementById('success-screen').classList.add('show');
-  const needed=slotsNeeded(total);
   document.getElementById('success-items').innerHTML=items.map(i=>`<div class="cart-row"><span>${i.qty}\u00d7 ${i.name}</span><span>${(i.qty*i.price).toFixed(2)} PLN</span></div>`).join('')+`<div class="cart-row cart-total"><span>Razem</span><span>${tp.toFixed(2)} PLN</span></div>`;
-  document.getElementById('success-detail').innerHTML=`Odbi\u00f3r o <strong>${selectedTime}</strong>${needed>1?' <span style="font-size:.8rem;color:var(--warm-gray)">(zam\u00f3wienie roz\u0142o\u017cone na '+needed+' slot\u00f3w)</span>':''} \u00b7 ul. Lubelska 78, Wi\u0105zowna<br>P\u0142atno\u015b\u0107 got\u00f3wk\u0105 lub kart\u0105 przy odbiorze`;
+  document.getElementById('success-detail').innerHTML=`Odbi\u00f3r o <strong>${actualPickup}</strong>${needed>1?' <span style="font-size:.8rem;color:var(--warm-gray)">(przygotowanie od '+selectedTime+' do '+actualPickup+')</span>':''} \u00b7 ul. Lubelska 78, Wi\u0105zowna<br>P\u0142atno\u015b\u0107 got\u00f3wk\u0105 lub kart\u0105 przy odbiorze`;
 }
 function resetOrder(){
   selectedTime=null;cart={};hideBubble();
