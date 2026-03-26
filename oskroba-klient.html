@@ -30,6 +30,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .menu-item{border:2px solid var(--light-gray);border-radius:12px;padding:.75rem 1rem;cursor:pointer;transition:all .15s;display:flex;align-items:flex-start;gap:.75rem}
 .menu-item:hover{border-color:var(--rust)}.menu-item.selected{border-color:var(--rust);background:#FFF8F6}
 .menu-item-check{width:22px;height:22px;min-width:22px;border-radius:50%;border:2px solid var(--light-gray);display:flex;align-items:center;justify-content:center;font-size:.75rem;margin-top:1px;transition:all .15s}
+.menu-item-img{width:56px;height:56px;min-width:56px;border-radius:10px;object-fit:cover;background:#f0ebe4}
 .menu-item.selected .menu-item-check{background:var(--rust);border-color:var(--rust);color:white}
 .menu-item-info{flex:1}.menu-item-name{font-weight:500;font-size:.88rem}
 .menu-item-desc{font-size:.68rem;color:var(--warm-gray);margin-top:.15rem;line-height:1.4}
@@ -208,10 +209,10 @@ const PIZZA=[
   {id:'burratina',  name:'Burratina Crudo',   price:46,  desc:'sos pomidorowy Pelati, szynka crudo, pomidorki koktajlowe, rukola, burrata, balsamico, oliwa z oliwek'},
 ];
 const KANAPKI=[
-  {id:'kan_vege',   name:'Kanapka włoska – Vege 🌿', price:15.9, desc:'mozzarella fior di latte, sos pomidorowy Pelati, rukola, pomidory z balsamico, oregano'},
-  {id:'kan_salame', name:'Kanapka włoska – Salame',  price:15.9, desc:'salami włoskie, rukola, sos pomidorowy Pelati, pomidory włoskie, oliwki'},
-  {id:'kan_parma',  name:'Kanapka włoska – Parma',   price:15.9, desc:'szynka parmeńska włoska, sos pomidorowy Pelati, pomidorki cherry'},
-  {id:'kan_cotto',  name:'Kanapka włoska – Szynka',  price:15.9, desc:'szynka cotto, rukola, pomidory malinowe czerwone lub żółte'},
+  {id:'kan_vege',   name:'Kanapka włoska – Vege 🌿', price:15.9, desc:'mozzarella fior di latte, sos pomidorowy Pelati, rukola, pomidory z balsamico, oregano', img:'https://images.unsplash.com/photo-1575931727645-d5c19467f9f5?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'kan_salame', name:'Kanapka włoska – Salame',  price:15.9, desc:'salami włoskie, rukola, sos pomidorowy Pelati, pomidory włoskie, oliwki', img:'https://images.unsplash.com/photo-1705647405231-c481e117e609?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'kan_parma',  name:'Kanapka włoska – Parma',   price:15.9, desc:'szynka parmeńska włoska, sos pomidorowy Pelati, pomidorki cherry', img:'https://images.unsplash.com/photo-1662980482395-24343058f9c3?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'kan_cotto',  name:'Kanapka włoska – Szynka',  price:15.9, desc:'szynka cotto, rukola, pomidory malinowe czerwone lub żółte', img:'https://images.unsplash.com/photo-1481070414801-51fd732d7184?w=120&h=120&fit=crop&auto=format&q=60'},
 ];
 const DODATKI=[
   {id:'dod_mozzarella', name:'Mozzarella podwójna',  price:3, desc:'Podwójna porcja mozzarelli fior di latte', type:'extra'},
@@ -225,14 +226,14 @@ const SOSY=[
   {id:'sos_czosnkowy',  name:'Sos czosnkowy',  price:3.5, desc:'Sos czosnkowy do pizzy', type:'extra'},
 ];
 const SNIADANIA=[
-  {id:'sn_slodko',    name:'Królewska uczta słodko-ostra',            price:28, desc:'2 kromki chałki zapiekanej na chrupko, chrzan z wieprzowiną szarpaną, sos pesto, świeży tymianek, pomidorki koktajlowe', type:'breakfast'},
-  {id:'sn_tosty',     name:'Królewskie tosty śniadaniowe',            price:33, desc:'tosty grillowane z mozzarellą, cheddar, szynka włoska, rukola, mini sałatka, sos pomidorowy pelati', type:'breakfast'},
-  {id:'sn_jajecznica', name:'Śniadanie z jajecznicą i twarożkiem',    price:28, desc:'jajecznica z 3 jaj ze szczypiorkiem, kremowy twarożek ze świeżymi warzywami, kompozycja sałat, sos winegret', type:'breakfast'},
-  {id:'sn_krol',      name:'Śniadanie królowej/króla',                price:33, desc:'3 frankfurterki, 3 plastry boczku, 2 jaja sadzone, 2 grzanki, kompozycja sałat, sos winegret', type:'breakfast'},
-  {id:'sn_losos',     name:'Królewski Łosoś',                         price:28, desc:'szynka włoska, ser zielony, salami napoli, pasta jajeczna, jajo na twardo, sałata, pomidory, mozzarella', type:'breakfast'},
-  {id:'sn_royal',     name:'Śniadanie Royal',                         price:33, desc:'kiełbaska grillowana, kiszki groch, karmelizowana cebulka, musztarda, ketchup, 2 ogórki kiszone', type:'breakfast'},
-  {id:'sn_szakszuka', name:'Dworska Szakszuka',                       price:33, desc:'pomidory włoskie pelati, jajka sadzone, salami napoli, ser feta', type:'breakfast'},
-  {id:'sn_chlopski',  name:'Chłopski Dwór',                           price:33, desc:'kiełbaska grillowana, kiszki groch, karmelizowana cebulka, musztarda, ketchup, 2 ogórki kiszone', type:'breakfast'},
+  {id:'sn_slodko',    name:'Królewska uczta słodko-ostra',            price:28, desc:'2 kromki chałki zapiekanej na chrupko, chrzan z wieprzowiną szarpaną, sos pesto, świeży tymianek, pomidorki koktajlowe', type:'breakfast', img:'https://images.unsplash.com/photo-1766981725120-4d39e6c9ad05?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_tosty',     name:'Królewskie tosty śniadaniowe',            price:33, desc:'tosty grillowane z mozzarellą, cheddar, szynka włoska, rukola, mini sałatka, sos pomidorowy pelati', type:'breakfast', img:'https://images.unsplash.com/photo-1619531040576-f9416740661b?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_jajecznica', name:'Śniadanie z jajecznicą i twarożkiem',    price:28, desc:'jajecznica z 3 jaj ze szczypiorkiem, kremowy twarożek ze świeżymi warzywami, kompozycja sałat, sos winegret', type:'breakfast', img:'https://images.unsplash.com/photo-1600028657385-f5f772e618b1?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_krol',      name:'Śniadanie królowej/króla',                price:33, desc:'3 frankfurterki, 3 plastry boczku, 2 jaja sadzone, 2 grzanki, kompozycja sałat, sos winegret', type:'breakfast', img:'https://images.unsplash.com/photo-1655979283362-535e6a167a53?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_losos',     name:'Królewski Łosoś',                         price:28, desc:'szynka włoska, ser zielony, salami napoli, pasta jajeczna, jajo na twardo, sałata, pomidory, mozzarella', type:'breakfast', img:'https://images.unsplash.com/photo-1608039867578-2bba47388911?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_royal',     name:'Śniadanie Royal',                         price:33, desc:'kiełbaska grillowana, kiszki groch, karmelizowana cebulka, musztarda, ketchup, 2 ogórki kiszone', type:'breakfast', img:'https://images.unsplash.com/photo-1749280447018-452976e69a54?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_szakszuka', name:'Dworska Szakszuka',                       price:33, desc:'pomidory włoskie pelati, jajka sadzone, salami napoli, ser feta', type:'breakfast', img:'https://images.unsplash.com/photo-1590412200988-a436970781fa?w=120&h=120&fit=crop&auto=format&q=60'},
+  {id:'sn_chlopski',  name:'Chłopski Dwór',                           price:33, desc:'kiełbaska grillowana, kiszki groch, karmelizowana cebulka, musztarda, ketchup, 2 ogórki kiszone', type:'breakfast', img:'https://images.unsplash.com/photo-1773083042321-a4d900c2b101?w=120&h=120&fit=crop&auto=format&q=60'},
 ];
 const SNIADANIA_KAWA={id:'sn_kawa', name:'+ Kawa do śniadania',  price:4.9, desc:'Kawa za jedyne 4.90 zł do zestawu śniadaniowego', type:'breakfast'};
 const PIZZA_MENU=[...PIZZA,...KANAPKI];
@@ -553,10 +554,11 @@ function buildMenuSection(listId,items){
   const list=document.getElementById(listId);if(!list)return;list.innerHTML='';
   items.forEach(item=>{
     const qty=cart[item.id]||0;const el=document.createElement('div');el.className=`menu-item${qty>0?' selected':''}`;
-    el.innerHTML=`<div class="menu-item-check">${qty>0?'✓':''}</div>
+    el.innerHTML=`<div class="menu-item-check">${qty>0?'\u2713':''}</div>
+      ${item.img?`<img class="menu-item-img" src="${item.img}" alt="${item.name}" loading="lazy">`:`​`}
       <div class="menu-item-info"><div class="menu-item-name">${item.name}</div><div class="menu-item-desc">${item.desc}</div>
         ${qty>0?`<div class="menu-item-qty">
-          <button class="qty-btn" onclick="chQty('${item.id}',-1,event)">−</button>
+          <button class="qty-btn" onclick="chQty('${item.id}',-1,event)">\u2212</button>
           <div class="qty-num">${qty}</div>
           <button class="qty-btn" onclick="chQty('${item.id}',1,event)">+</button>
         </div>`:''}
