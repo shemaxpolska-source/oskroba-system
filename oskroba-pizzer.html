@@ -46,8 +46,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .orders-list{display:flex;flex-direction:column;gap:.6rem}
 .order-card{background:white;border-radius:12px;padding:1rem 1.25rem;border-left:4px solid var(--rust);animation:slideIn .35s ease}
 .order-card.breakfast{border-left-color:var(--gold);background:#FFFBF0}
-.order-card.done.breakfast{border-left-color:var(--sage)}
 .order-card.done{border-left-color:var(--sage);opacity:.6}
+.order-card.done.breakfast{border-left-color:var(--sage)}
 @keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
 .order-top{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
 .order-time-badge{font-family:'DM Mono',monospace;font-size:.9rem;font-weight:500;background:var(--charcoal);color:white;border-radius:8px;padding:.35rem .65rem;white-space:nowrap}
@@ -241,7 +241,7 @@ const PIZZA=[
 ];
 const MENU=[...PIZZA];
 const MAX=2,STEP=5;
-// Rozklad ilości pizz wstecz od slotu odbioru (identycznie jak w kliencie)
+// Rozkład ilości pizz wstecz od slotu odbioru (identycznie jak w kliencie)
 function distributeBackwards(pickupTime,qty){
   const keys=Object.keys(slots);
   const needed=Math.ceil(qty/MAX);
@@ -439,9 +439,9 @@ function playBreakfastSound(){
 }
 function showAlert(text,orderItems){
   const el=document.getElementById('new-order-alert');document.getElementById('alert-text').textContent=text;
-  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),5000);
   const hasBf=orderItems&&orderItems.some(i=>i.type==='breakfast');
   if(hasBf){el.style.background='var(--gold)'}else{el.style.background='var(--rust)'}
+  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),5000);
   if(hasBf){playBreakfastSound()}else{playOrderSound()}
 }
 
