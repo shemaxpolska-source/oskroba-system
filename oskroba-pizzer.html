@@ -45,6 +45,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .section-label{font-family:'DM Mono',monospace;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--warm-gray);margin-bottom:1rem;display:flex;align-items:center;gap:.5rem}
 .orders-list{display:flex;flex-direction:column;gap:.6rem}
 .order-card{background:white;border-radius:12px;padding:1rem 1.25rem;border-left:4px solid var(--rust);animation:slideIn .35s ease}
+.order-card.breakfast{border-left-color:var(--gold);background:#FFFBF0}
+.order-card.done.breakfast{border-left-color:var(--sage)}
 .order-card.done{border-left-color:var(--sage);opacity:.6}
 @keyframes slideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
 .order-top{display:flex;align-items:center;gap:1rem;margin-bottom:.5rem}
@@ -55,6 +57,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .btn-done:hover{background:var(--sage);color:white}
 .order-items{display:flex;flex-wrap:wrap;gap:.35rem}
 .order-item-tag{font-size:.72rem;font-family:'DM Mono',monospace;background:var(--cream);border:1px solid var(--light-gray);border-radius:20px;padding:.2rem .55rem}
+.order-item-tag.breakfast{background:#FFF3D0;border-color:#E8C84A;color:#7A6200}
+.order-item-tag.sauce{background:#FFE8D6;border-color:#E8944A;color:#8A4800}
 .new-order-alert{display:none;background:var(--rust);color:white;padding:.75rem 1.5rem;border-radius:12px;font-weight:500;margin-bottom:1rem;align-items:center;gap:.75rem;animation:shake .4s ease}
 .new-order-alert.show{display:flex}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
@@ -237,6 +241,16 @@ const PIZZA=[
 ];
 const MENU=[...PIZZA];
 const MAX=2,STEP=5;
+// Rozklad ilości pizz wstecz od slotu odbioru (identycznie jak w kliencie)
+function distributeBackwards(pickupTime,qty){
+  const keys=Object.keys(slots);
+  const needed=Math.ceil(qty/MAX);
+  const endIdx=keys.indexOf(pickupTime);
+  if(endIdx<0)return;
+  const si=Math.max(0,endIdx-(needed-1));
+  let rem=qty;
+  for(let i=si;i<=endIdx;i++){const k=keys[i];const add=Math.min(rem,MAX);slots[k].count+=add;rem-=add;if(rem<=0)break;}
+}
 let today=new Date();
 let slots={},orders=[],statsPeriod='day',modalSlot=null,modalCart={},modalExtraSlots=0;
 
@@ -263,7 +277,7 @@ async function initSlots(){
     const {data:ordData}=await sbClient.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
     if(ordData){
       orders=ordData.map(o=>({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items}));
-      ordData.forEach(o=>{const qty=o.items.reduce((s,i)=>s+i.qty,0);if(slots[o.pickup_time])slots[o.pickup_time].count=Math.min((slots[o.pickup_time].count||0)+qty,MAX*2)});
+      ordData.forEach(o=>{const qty=o.items.reduce((s,i)=>s+i.qty,0);distributeBackwards(o.pickup_time,qty)});
     }
     // Wczytaj blokady
     const {data:blData}=await sbClient.from('blocked_slots').select('*').eq('date',dateStr);
@@ -278,10 +292,10 @@ async function initSlots(){
           // Sprawdź czy to zamówienie już nie jest w liście (ochrona przed duplikatami)
           if(o.date===dateStr && !orders.some(ex=>String(ex.id)===String(o.id))){
             const qty=o.items.reduce((s,i)=>s+i.qty,0);
-            if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
+            distributeBackwards(o.pickup_time,qty);
             orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
             renderPizzerPanel();
-            showAlert(`${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}x${i.name}`).join(', ')}`);
+            showAlert(`${o.name} — ${qty} szt o ${o.pickup_time}: ${o.items.map(i=>`${i.qty}x${i.name}`).join(', ')}`,o.items);
           }
         }
       )
@@ -299,11 +313,12 @@ async function initSlots(){
         if(freshOrders.length>0){
           freshOrders.forEach(o=>{
             const qty=o.items.reduce((s,i)=>s+i.qty,0);
-            if(slots[o.pickup_time])slots[o.pickup_time].count+=qty;
+            distributeBackwards(o.pickup_time,qty);
             orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
           });
           renderPizzerPanel();
-          showAlert(`${freshOrders.length} nowe zamowienie!`);
+          const allItems=freshOrders.flatMap(o=>o.items||[]);
+          showAlert(`${freshOrders.length} nowe zamowienie!`,allItems);
         }
       }
     }, 15000);
@@ -340,6 +355,10 @@ function renderPizzerPanel(){
   renderOrders();
 }
 
+function isBreakfastOrder(items){return items.some(i=>i.type==='breakfast')}
+function isSauceItem(name){const n=name.toLowerCase();return n.includes('sos ')|| n.includes('sos\u00a0')||n.startsWith('sos ')||n==='sos pomidorowy'||n==='sos czosnkowy'||n.includes('czosnkowy')||n.includes('pomidorowy sos')}
+function itemTagClass(item){if(item.type==='breakfast')return' breakfast';if(item.type==='extra'&&isSauceItem(item.name))return' sauce';return''}
+
 function renderOrders(){
   const list=document.getElementById('orders-list'),badge=document.getElementById('order-count-badge');
   const active=orders.filter(o=>!o.done);badge.textContent=active.length?`${active.length} aktywnych`:'';
@@ -347,13 +366,16 @@ function renderOrders(){
   list.innerHTML='';
   [...orders].sort((a,b)=>a.time.localeCompare(b.time)).forEach(o=>{
     const tq=o.items.reduce((s,i)=>s+i.qty,0),tp=o.items.reduce((s,i)=>s+i.qty*i.price,0);
-    const c=document.createElement('div');c.className=`order-card ${o.done?'done':''}`;
+    const hasBf=isBreakfastOrder(o.items);
+    const cardClass=`order-card ${o.done?'done':''} ${hasBf?'breakfast':''}`.trim();
+    const emoji=hasBf?'☀️':'🍕';
+    const c=document.createElement('div');c.className=cardClass;
     c.innerHTML=`<div class="order-top">
       <div class="order-time-badge">${o.time}</div>
       <div class="order-info"><div class="order-name">${o.name}</div><div class="order-detail">${o.phone}${tp?' · '+tp.toFixed(2)+' PLN':''}</div></div>
-      <div class="order-pizza-count">${tq}🍕</div>
+      <div class="order-pizza-count">${tq}${emoji}</div>
       ${!o.done?`<button class="btn-done" onclick="markDone('${o.id}')">✓ Gotowe</button>`:'<div style="font-size:.7rem;color:var(--sage);font-family:\'DM Mono\'">✓ wydano</div>'}
-    </div><div class="order-items">${o.items.map(i=>`<span class="order-item-tag">${i.qty}× ${i.name}</span>`).join('')}</div>`;
+    </div><div class="order-items">${o.items.map(i=>`<span class="order-item-tag${itemTagClass(i)}">${i.qty}× ${i.name}</span>`).join('')}</div>`;
     list.appendChild(c);
   });
 }
@@ -396,10 +418,31 @@ function playOrderSound(){
     }
   }catch(e){console.warn('Audio error:',e)}
 }
-function showAlert(text){
+// Dźwięk śniadaniowy — łagodniejszy, niższe tony, sinusoidalny (nie kwadratowy)
+function playBreakfastSound(){
+  try{
+    const ctx=ensureAudio();
+    for(let r=0;r<3;r++){
+      const offset=r*0.7;
+      [523,659,784,659].forEach((freq,i)=>{
+        const osc=ctx.createOscillator(),gain=ctx.createGain();
+        osc.connect(gain);gain.connect(ctx.destination);
+        osc.type='sine';osc.frequency.value=freq;
+        gain.gain.setValueAtTime(0,ctx.currentTime+offset+i*0.15);
+        gain.gain.linearRampToValueAtTime(0.5,ctx.currentTime+offset+i*0.15+0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+offset+i*0.15+0.35);
+        osc.start(ctx.currentTime+offset+i*0.15);
+        osc.stop(ctx.currentTime+offset+i*0.15+0.35);
+      });
+    }
+  }catch(e){console.warn('Audio error:',e)}
+}
+function showAlert(text,orderItems){
   const el=document.getElementById('new-order-alert');document.getElementById('alert-text').textContent=text;
   el.classList.add('show');setTimeout(()=>el.classList.remove('show'),5000);
-  playOrderSound();
+  const hasBf=orderItems&&orderItems.some(i=>i.type==='breakfast');
+  if(hasBf){el.style.background='var(--gold)'}else{el.style.background='var(--rust)'}
+  if(hasBf){playBreakfastSound()}else{playOrderSound()}
 }
 
 // MODAL tel
@@ -461,17 +504,20 @@ async function confirmAddPizzas(){
   const allM=[...PIZZA];
   const items=Object.entries(modalCart).filter(([,q])=>q>0).map(([id,qty])=>{const m=allM.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
   const n=modalCartTotal(),affected=affectedSlots();
-  let rem=n;const keys=Object.keys(slots),si=keys.indexOf(modalSlot);
-  affected.forEach(key=>{if(!slots[key])return;const free=MAX-slots[key].count;const fill=Math.min(free,rem);slots[key].count+=fill;rem-=fill});
+  // Czas odbioru = ostatni slot (gdy wszystko gotowe), spójne z klientem
+  const pickupTime=affected.length>0?affected[affected.length-1]:modalSlot;
+  // Rozkładamy wstecz od pickup time
+  distributeBackwards(pickupTime,n);
+  const keys=Object.keys(slots),si=keys.indexOf(modalSlot);
   for(let i=0;i<modalExtraSlots;i++){const k=keys[si+slotsNeeded()+i];if(k&&slots[k])slots[k].manualBlocked=true}
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-    await sbClient.from('orders').insert({name:'📞 Telefoniczne',phone:'—',pickup_time:modalSlot,date:dateStr,items,total:items.reduce((s,i)=>s+i.qty*i.price,0),source:'tel',done:false,cancelled:false,created_at:new Date().toISOString()});
+    await sbClient.from('orders').insert({name:'📞 Telefoniczne',phone:'—',pickup_time:pickupTime,date:dateStr,items,total:items.reduce((s,i)=>s+i.qty*i.price,0),source:'tel',done:false,cancelled:false,created_at:new Date().toISOString()});
   } else {
-    orders.push({id:Date.now(),name:'📞 Telefoniczne',phone:'—',time:modalSlot,done:false,source:'tel',items});
+    orders.push({id:Date.now(),name:'📞 Telefoniczne',phone:'—',time:pickupTime,done:false,source:'tel',items});
   }
   closeModal();renderPizzerPanel();
-  showAlert(`📞 ${n} szt o ${modalSlot} → ${affected.join(', ')}`);
+  showAlert(`📞 ${n} szt o ${pickupTime} → ${affected.join(', ')}`,items);
 }
 
 // STATS
