@@ -69,7 +69,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .loading-bar{height:3px;background:linear-gradient(90deg,var(--rust),var(--rust-light));animation:loading 1s infinite;display:none}
 .loading-bar.show{display:block}
 @keyframes loading{0%{background-position:-200px 0}100%{background-position:200px 0}}
-
 .time-slot.past{background:#f0f0f0;opacity:.4;cursor:not-allowed;pointer-events:none}
 .time-slot.past .time-slot-time{color:#bbb;text-decoration:line-through}
 .time-slot.past .time-slot-avail{color:#ccc}
@@ -123,8 +122,20 @@ Resources:`;for(let t of c){if(!t||typeof t!=`string`)throw Error(`@supabase/aut
       <div class="step-title">Co dziś zjesz?</div>
       <div class="menu-section-label">🍕 Pizza</div>
       <div class="menu-list" id="menu-pizza"></div>
+      <div class="menu-section-label">🧀 Dodatki do pizzy · 3,00 zł/szt</div>
+      <div class="menu-list" id="menu-dodatki"></div>
+      <div class="menu-section-label">🫙 Sosy · 3,50 zł/szt</div>
+      <div class="menu-list" id="menu-sosy"></div>
       <div class="menu-section-label">🥪 Kanapki włoskie</div>
       <div class="menu-list" id="menu-kanapki"></div>
+      <div class="menu-section-label">☀️ Śniadania <span style="font-size:.55rem;color:var(--warm-gray);text-transform:none;letter-spacing:0">(+ opakowanie 2,50 zł)</span></div>
+      <div class="menu-list" id="menu-sniadania"></div>
+      <div class="menu-section-label">☕ Do śniadania</div>
+      <div class="menu-list" id="menu-kawa"></div>
+      <div class="menu-section-label" style="margin-top:1rem">📝 Uwagi do zamówienia</div>
+      <div style="margin-bottom:.75rem">
+        <textarea id="inp-notes" placeholder="Wpisz uwagi, np. dodatkowe składniki (oliwki, żurawina itp.) — każdy niestandardowy dodatek 3,50 zł, doliczymy na miejscu" style="width:100%;min-height:60px;border:2px solid var(--light-gray);border-radius:10px;padding:.6rem .8rem;font-family:'DM Sans',sans-serif;font-size:.82rem;resize:vertical;outline:none;transition:border-color .15s" onfocus="this.style.borderColor='var(--rust)'" onblur="this.style.borderColor='var(--light-gray)'"></textarea>
+      </div>
       <div class="step-label" style="margin-top:1.25rem">Krok 2 — Wybierz godzinę odbioru</div>
       <div class="step-title">Kiedy odbierzesz?</div>
       <div id="hours-info" style="font-family:'DM Mono',monospace;font-size:.7rem;color:var(--warm-gray);margin-bottom:.75rem"></div>
@@ -202,29 +213,75 @@ const KANAPKI=[
   {id:'kan_parma',  name:'Kanapka włoska – Parma',   price:15.9, desc:'szynka parmeńska włoska, sos pomidorowy Pelati, pomidorki cherry'},
   {id:'kan_cotto',  name:'Kanapka włoska – Szynka',  price:15.9, desc:'szynka cotto, rukola, pomidory malinowe czerwone lub żółte'},
 ];
-const MENU=[...PIZZA,...KANAPKI];
+const DODATKI=[
+  {id:'dod_mozzarella', name:'Mozzarella podwójna',  price:3, desc:'Podwójna porcja mozzarelli fior di latte', type:'extra'},
+  {id:'dod_salami',     name:'Salami podwójne',      price:3, desc:'Podwójna porcja salami Napoli', type:'extra'},
+  {id:'dod_szynka',     name:'Szynka podwójna',      price:3, desc:'Podwójna porcja szynki', type:'extra'},
+  {id:'dod_cebula',     name:'Cebula',               price:3, desc:'Dodatkowa porcja cebuli', type:'extra'},
+  {id:'dod_pieczarki',  name:'Pieczarki',             price:3, desc:'Dodatkowa porcja pieczarek', type:'extra'},
+];
+const SOSY=[
+  {id:'sos_pomidorowy', name:'Sos pomidorowy', price:3.5, desc:'Sos pomidorowy do pizzy', type:'extra'},
+  {id:'sos_czosnkowy',  name:'Sos czosnkowy',  price:3.5, desc:'Sos czosnkowy do pizzy', type:'extra'},
+];
+const SNIADANIA=[
+  {id:'sn_slodko',    name:'Królewska uczta słodko-ostra',            price:28, desc:'2 kromki chałki zapiekanej na chrupko, chrzan z wieprzowiną szarpaną, sos pesto, świeży tymianek, pomidorki koktajlowe', type:'breakfast'},
+  {id:'sn_tosty',     name:'Królewskie tosty śniadaniowe',            price:33, desc:'tosty grillowane z mozzarellą, cheddar, szynka włoska, rukola, mini sałatka, sos pomidorowy pelati', type:'breakfast'},
+  {id:'sn_jajecznica', name:'Śniadanie z jajecznicą i twarożkiem',    price:28, desc:'jajecznica z 3 jaj ze szczypiorkiem, kremowy twarożek ze świeżymi warzywami, kompozycja sałat, sos winegret', type:'breakfast'},
+  {id:'sn_krol',      name:'Śniadanie królowej/króla',                price:33, desc:'3 frankfurterki, 3 plastry boczku, 2 jaja sadzone, 2 grzanki, kompozycja sałat, sos winegret', type:'breakfast'},
+  {id:'sn_losos',     name:'Królewski Łosoś',                         price:28, desc:'szynka włoska, ser zielony, salami napoli, pasta jajeczna, jajo na twardo, sałata, pomidory, mozzarella', type:'breakfast'},
+  {id:'sn_royal',     name:'Śniadanie Royal',                         price:33, desc:'kiełbaska grillowana, kiszki groch, karmelizowana cebulka, musztarda, ketchup, 2 ogórki kiszone', type:'breakfast'},
+  {id:'sn_szakszuka', name:'Dworska Szakszuka',                       price:33, desc:'pomidory włoskie pelati, jajka sadzone, salami napoli, ser feta', type:'breakfast'},
+  {id:'sn_chlopski',  name:'Chłopski Dwór',                           price:33, desc:'kiełbaska grillowana, kiszki groch, karmelizowana cebulka, musztarda, ketchup, 2 ogórki kiszone', type:'breakfast'},
+];
+const SNIADANIA_KAWA={id:'sn_kawa', name:'+ Kawa do śniadania',  price:4.9, desc:'Kawa za jedyne 4.90 zł do zestawu śniadaniowego', type:'breakfast'};
+const PIZZA_MENU=[...PIZZA,...KANAPKI];
+const EXTRAS_MENU=[...DODATKI,...SOSY];
+const MENU=[...PIZZA,...KANAPKI,...DODATKI,...SOSY,...SNIADANIA,SNIADANIA_KAWA];
+const BREAKFAST_PACKAGING=2.50; // pudełko 1.50 + torebka 1.00
 const MAX=2,STEP=5;
 let today=new Date();
 let slots={},selectedTime=null,cart={};
-let slotKeys=[];
+let slotKeys=[]; // sorted list of pizza slot keys
+let bfSlots={}, bfSlotKeys=[]; // breakfast slots (osobne)
+let customerNotes=''; // uwagi klienta
 
 function getHours(){
   const dow=today.getDay();
-  if(dow===0)return{start:9,endH:17,endM:30,label:'Niedziela 9:00\u201317:30'};
-  if(dow===6)return{start:9,endH:18,endM:0,label:'Sobota 9:00\u201318:00'};
-  return{start:9,endH:19,endM:30,label:'Pon\u2013Pt 9:00\u201319:30'};
+  if(dow===0)return{start:9,endH:17,endM:30,label:'Niedziela 9:00–17:30'};
+  if(dow===6)return{start:9,endH:18,endM:0,label:'Sobota 9:00–18:00'};
+  return{start:9,endH:19,endM:30,label:'Pon–Pt 9:00–19:30'};
+}
+function getBreakfastHours(){
+  const dow=today.getDay();
+  if(dow===0)return{startH:9,startM:0,endH:12,endM:30,label:'Niedziela 9:00–12:30'};
+  if(dow===6)return{startH:7,startM:0,endH:12,endM:30,label:'Sobota 7:00–12:30'};
+  return{startH:6,startM:30,endH:12,endM:30,label:'Pon–Pt 6:30–12:30'};
 }
 function pad(n){return String(n).padStart(2,'0')}
 
+// Check if a slot time is in the past
 function isPast(key){
   const [h,m]=key.split(':').map(Number);
   const now=new Date();
   return h<now.getHours()||(h===now.getHours()&&m<=now.getMinutes());
 }
 
+// Helpers: cart item types
+function isPizzaItem(id){return PIZZA.some(p=>p.id===id)||KANAPKI.some(k=>k.id===id)}
+function isBreakfastItem(id){return SNIADANIA.some(s=>s.id===id)||id===SNIADANIA_KAWA.id}
+function isExtraItem(id){return DODATKI.some(d=>d.id===id)||SOSY.some(s=>s.id===id)}
+function cartPizzaQty(){return Object.entries(cart).filter(([id])=>isPizzaItem(id)).reduce((s,[,q])=>s+q,0)}
+function cartBreakfastQty(){return Object.entries(cart).filter(([id])=>isBreakfastItem(id)).reduce((s,[,q])=>s+q,0)}
+function cartHasPizza(){return cartPizzaQty()>0}
+function cartHasBreakfast(){return cartBreakfastQty()>0}
+
+// How many consecutive slots are needed for N pizzas
 function slotsNeeded(qty){return Math.ceil(qty/MAX)}
 
-function canFitAt(startKey,totalQty){
+// Check if we can fit totalQty pizzas starting from startKey
+// Returns {ok:boolean, slotsUsed:string[]}
+function canFitAt(startKey, totalQty){
   const needed=slotsNeeded(totalQty);
   const startIdx=slotKeys.indexOf(startKey);
   if(startIdx<0)return{ok:false,slotsUsed:[]};
@@ -244,9 +301,11 @@ function canFitAt(startKey,totalQty){
   return{ok:remaining<=0,slotsUsed:used};
 }
 
+// Znajdź najbliższy wolny termin w okolicy preferowanej godziny
 function findNearestAvailable(totalQty, preferredKey){
   const prefIdx=slotKeys.indexOf(preferredKey);
   if(prefIdx<0) return null;
+  // Szukaj rozszerzając się od preferowanego czasu — najpierw po, potem przed
   for(let dist=1;dist<slotKeys.length;dist++){
     const afterIdx=prefIdx+dist;
     if(afterIdx<slotKeys.length){
@@ -261,13 +320,61 @@ function findNearestAvailable(totalQty, preferredKey){
   }
   return null;
 }
+// Oblicz czas odbioru = ostatni slot (kiedy wszystkie pizze będą gotowe)
 function pickupTimeFromSlots(slotsUsed){
   if(!slotsUsed||slotsUsed.length<=1) return null;
   return slotsUsed[slotsUsed.length-1];
 }
 
+// ══ BREAKFAST SLOT FUNCTIONS ══
+function bfCanFitAt(startKey, totalQty){
+  const needed=slotsNeeded(totalQty);
+  const startIdx=bfSlotKeys.indexOf(startKey);
+  if(startIdx<0)return{ok:false,slotsUsed:[]};
+  const used=[];let remaining=totalQty;
+  for(let i=0;i<needed;i++){
+    if(startIdx+i>=bfSlotKeys.length)return{ok:false,slotsUsed:[]};
+    const key=bfSlotKeys[startIdx+i];
+    const s=bfSlots[key];
+    if(!s||s.manualBlocked||isPast(key))return{ok:false,slotsUsed:[]};
+    const avail=MAX-s.count;
+    if(avail<=0)return{ok:false,slotsUsed:[]};
+    used.push(key);remaining-=avail;
+    if(remaining<=0)break;
+  }
+  return{ok:remaining<=0,slotsUsed:used};
+}
+function bfFindNearest(totalQty, preferredKey){
+  const prefIdx=bfSlotKeys.indexOf(preferredKey);
+  if(prefIdx<0) return null;
+  for(let dist=1;dist<bfSlotKeys.length;dist++){
+    const afterIdx=prefIdx+dist;
+    if(afterIdx<bfSlotKeys.length){const key=bfSlotKeys[afterIdx];if(!isPast(key)){const r=bfCanFitAt(key,totalQty);if(r.ok)return{key,slotsUsed:r.slotsUsed};}}
+    const beforeIdx=prefIdx-dist;
+    if(beforeIdx>=0){const key=bfSlotKeys[beforeIdx];if(!isPast(key)){const r=bfCanFitAt(key,totalQty);if(r.ok)return{key,slotsUsed:r.slotsUsed};}}
+  }
+  return null;
+}
+function bfGetState(k){
+  const s=bfSlots[k];
+  if(!s)return'unknown';
+  if(isPast(k))return'past';
+  if(s.manualBlocked||s.count>=MAX)return'blocked';
+  if(s.count>0)return'partial';
+  return'available';
+}
+
+// Determine which slot system to show & validate
+function activeSlotMode(){
+  const hp=cartHasPizza(), hb=cartHasBreakfast();
+  if(hp&&hb) return 'both';
+  if(hb) return 'breakfast';
+  return 'pizza'; // default
+}
+
 async function initSlots(){
   initSupabase();
+  // ── Pizza slots ──
   slots={};
   const {start,endH,endM}=getHours();
   for(let h=start;h<=endH;h++)
@@ -276,26 +383,49 @@ async function initSlots(){
       slots[`${pad(h)}:${pad(m)}`]={count:0,manualBlocked:false};
     }
   slotKeys=Object.keys(slots).sort();
-  document.getElementById('hours-info').textContent=`Dzi\u015b czynne: ${getHours().label}`;
+  // ── Breakfast slots ──
+  bfSlots={};
+  const bf=getBreakfastHours();
+  for(let h=bf.startH;h<=bf.endH;h++){
+    const mStart=(h===bf.startH)?bf.startM:0;
+    for(let m=mStart;m<60;m+=STEP){
+      if(h===bf.endH&&m>bf.endM)break;
+      bfSlots[`${pad(h)}:${pad(m)}`]={count:0,manualBlocked:false};
+    }
+  }
+  bfSlotKeys=Object.keys(bfSlots).sort();
+
+  document.getElementById('hours-info').textContent=`Dziś czynne: ${getHours().label}`;
+
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
     const {data}=await sbClient.from('orders').select('pickup_time,items').eq('date',dateStr).eq('cancelled',false);
     if(data) data.forEach(o=>{
-      const qty=o.items.reduce((s,i)=>s+i.qty,0);
-      const needed=slotsNeeded(qty);
-      const startIdx=slotKeys.indexOf(o.pickup_time);
-      if(startIdx>=0){
-        let rem=qty;
-        for(let i=0;i<needed&&startIdx+i<slotKeys.length;i++){
-          const k=slotKeys[startIdx+i];
-          const add=Math.min(rem,MAX);
-          slots[k].count+=add;
-          rem-=add;
+      // Osobne liczenie pizza i śniadań
+      const pQty=o.items.filter(i=>!i.type||i.type==='pizza').reduce((s,i)=>s+i.qty,0);
+      const bQty=o.items.filter(i=>i.type==='breakfast').reduce((s,i)=>s+i.qty,0);
+      // Pizza slots — WSTECZ od pickup_time
+      if(pQty>0){
+        const needed=slotsNeeded(pQty);
+        const endIdx=slotKeys.indexOf(o.pickup_time);
+        if(endIdx>=0){
+          let rem=pQty;const si=Math.max(0,endIdx-(needed-1));
+          for(let i=si;i<=endIdx;i++){const k=slotKeys[i];const add=Math.min(rem,MAX);slots[k].count+=add;rem-=add;}
+        }
+      }
+      // Breakfast slots — WSTECZ od pickup_time
+      if(bQty>0){
+        const needed=slotsNeeded(bQty);
+        const endIdx=bfSlotKeys.indexOf(o.pickup_time);
+        if(endIdx>=0){
+          let rem=bQty;const si=Math.max(0,endIdx-(needed-1));
+          for(let i=si;i<=endIdx;i++){const k=bfSlotKeys[i];const add=Math.min(rem,MAX);bfSlots[k].count+=add;rem-=add;}
         }
       }
     });
     const {data:blocked}=await sbClient.from('blocked_slots').select('slot_time').eq('date',dateStr);
-    if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
+    if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true;if(bfSlots[b.slot_time])bfSlots[b.slot_time].manualBlocked=true;});
+
     sbClient.channel('client-live')
       .on('postgres_changes',{event:'*',schema:'public',table:'blocked_slots'},()=>refreshSlots())
       .on('postgres_changes',{event:'*',schema:'public',table:'orders'},()=>refreshSlots())
@@ -309,23 +439,24 @@ async function refreshSlots(){
   if(!useSupabase)return;
   const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
   Object.keys(slots).forEach(k=>{slots[k].count=0;slots[k].manualBlocked=false});
+  Object.keys(bfSlots).forEach(k=>{bfSlots[k].count=0;bfSlots[k].manualBlocked=false});
   const {data}=await sbClient.from('orders').select('pickup_time,items').eq('date',dateStr).eq('cancelled',false);
   if(data) data.forEach(o=>{
-    const qty=o.items.reduce((s,i)=>s+i.qty,0);
-    const needed=slotsNeeded(qty);
-    const startIdx=slotKeys.indexOf(o.pickup_time);
-    if(startIdx>=0){
-      let rem=qty;
-      for(let i=0;i<needed&&startIdx+i<slotKeys.length;i++){
-        const k=slotKeys[startIdx+i];
-        const add=Math.min(rem,MAX);
-        slots[k].count+=add;
-        rem-=add;
-      }
+    const pQty=o.items.filter(i=>!i.type||i.type==='pizza').reduce((s,i)=>s+i.qty,0);
+    const bQty=o.items.filter(i=>i.type==='breakfast').reduce((s,i)=>s+i.qty,0);
+    if(pQty>0){
+      const needed=slotsNeeded(pQty);
+      const endIdx=slotKeys.indexOf(o.pickup_time);
+      if(endIdx>=0){let rem=pQty;const si=Math.max(0,endIdx-(needed-1));for(let i=si;i<=endIdx;i++){const k=slotKeys[i];const add=Math.min(rem,MAX);slots[k].count+=add;rem-=add;}}
+    }
+    if(bQty>0){
+      const needed=slotsNeeded(bQty);
+      const endIdx=bfSlotKeys.indexOf(o.pickup_time);
+      if(endIdx>=0){let rem=bQty;const si=Math.max(0,endIdx-(needed-1));for(let i=si;i<=endIdx;i++){const k=bfSlotKeys[i];const add=Math.min(rem,MAX);bfSlots[k].count+=add;rem-=add;}}
     }
   });
   const {data:blocked}=await sbClient.from('blocked_slots').select('slot_time').eq('date',dateStr);
-  if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true});
+  if(blocked) blocked.forEach(b=>{if(slots[b.slot_time])slots[b.slot_time].manualBlocked=true;if(bfSlots[b.slot_time])bfSlots[b.slot_time].manualBlocked=true;});
   renderCustomerGrid();
 }
 
@@ -338,31 +469,79 @@ function getState(k){
   return'available';
 }
 function cartTotal(){return Object.values(cart).reduce((a,b)=>a+b,0)}
+function cartTotalPrice(){
+  let tp=0;
+  Object.entries(cart).filter(([,q])=>q>0).forEach(([id,qty])=>{const m=MENU.find(x=>x.id===id);if(m)tp+=m.price*qty;});
+  if(cartHasBreakfast())tp+=BREAKFAST_PACKAGING;
+  return tp;
+}
 
 function renderCustomerGrid(){
   const grid=document.getElementById('customer-time-grid');if(!grid)return;grid.innerHTML='';
-  const total=cartTotal();
-  let highlightSlots=new Set();
-  if(selectedTime&&total>0){
-    const fit=canFitAt(selectedTime,total);
-    if(fit.ok)highlightSlots=new Set(fit.slotsUsed);
+  const mode=activeSlotMode();
+  const pQty=cartPizzaQty(), bQty=cartBreakfastQty();
+  const hoursInfo=document.getElementById('hours-info');
+
+  // Choose which slots to display
+  let displaySlots, displayKeys, getStateFn;
+  if(mode==='breakfast'){
+    displaySlots=bfSlots; displayKeys=bfSlotKeys; getStateFn=bfGetState;
+    if(hoursInfo) hoursInfo.textContent=`Śniadania: ${getBreakfastHours().label}`;
+  } else if(mode==='both'){
+    // Show only overlapping times that exist in both systems
+    displayKeys=slotKeys.filter(k=>bfSlotKeys.includes(k));
+    displaySlots=slots; getStateFn=(k)=>{
+      const ps=getState(k), bs=bfGetState(k);
+      if(ps==='past'||bs==='past')return'past';
+      if(ps==='blocked'||bs==='blocked')return'blocked';
+      if(ps==='partial'||bs==='partial')return'partial';
+      return'available';
+    };
+    if(hoursInfo) hoursInfo.textContent=`Pizza: ${getHours().label} · Śniadania: ${getBreakfastHours().label}`;
+  } else {
+    displaySlots=slots; displayKeys=slotKeys; getStateFn=getState;
+    if(hoursInfo) hoursInfo.textContent=`Dziś czynne: ${getHours().label}`;
   }
-  Object.keys(slots).forEach(key=>{
-    const state=getState(key),s=slots[key],rem=MAX-s.count;
+
+  // Highlight calculation
+  let highlightSlots=new Set();
+  if(selectedTime&&pQty>0){
+    const fit=canFitAt(selectedTime,pQty);
+    if(fit.ok) fit.slotsUsed.forEach(k=>highlightSlots.add(k));
+  }
+  if(selectedTime&&bQty>0){
+    const fit=bfCanFitAt(selectedTime,bQty);
+    if(fit.ok) fit.slotsUsed.forEach(k=>highlightSlots.add(k));
+  }
+
+  displayKeys.forEach(key=>{
+    const state=getStateFn(key);
     const isPastSlot=state==='past';
     const isBlocked=state==='blocked';
     const isHighlighted=highlightSlots.has(key);
     const isSelected=selectedTime===key;
+
     const el=document.createElement('div');
     let cls=`time-slot ${state}`;
     if(isSelected&&!isBlocked&&!isPastSlot)cls+=' selected';
     else if(isHighlighted&&!isSelected)cls+=' selected';
     el.className=cls;
-    let label='\u2713';
-    if(isPastSlot)label='min\u0119\u0142o';
-    else if(isBlocked)label='zaj\u0119ty';
+
+    let label='✓';
+    if(isPastSlot)label='minęło';
+    else if(isBlocked)label='zajęty';
     else if(isHighlighted&&!isSelected)label='zarezerwowany';
-    else if(rem===1)label='1 wolne';
+    else{
+      // Show minimum remaining for the active mode
+      const sRem=(slots[key]?MAX-slots[key].count:MAX);
+      const bRem=(bfSlots[key]?MAX-bfSlots[key].count:MAX);
+      let rem=MAX;
+      if(mode==='pizza') rem=sRem;
+      else if(mode==='breakfast') rem=bRem;
+      else rem=Math.min(sRem,bRem);
+      if(rem===1) label='1 wolne';
+    }
+
     el.innerHTML=`<div class="time-slot-time">${key}</div><div class="time-slot-avail">${label}</div>`;
     if(!isBlocked&&!isPastSlot)el.onclick=()=>selectTime(key);
     grid.appendChild(el);
@@ -374,10 +553,10 @@ function buildMenuSection(listId,items){
   const list=document.getElementById(listId);if(!list)return;list.innerHTML='';
   items.forEach(item=>{
     const qty=cart[item.id]||0;const el=document.createElement('div');el.className=`menu-item${qty>0?' selected':''}`;
-    el.innerHTML=`<div class="menu-item-check">${qty>0?'\u2713':''}</div>
+    el.innerHTML=`<div class="menu-item-check">${qty>0?'✓':''}</div>
       <div class="menu-item-info"><div class="menu-item-name">${item.name}</div><div class="menu-item-desc">${item.desc}</div>
         ${qty>0?`<div class="menu-item-qty">
-          <button class="qty-btn" onclick="chQty('${item.id}',-1,event)">\u2212</button>
+          <button class="qty-btn" onclick="chQty('${item.id}',-1,event)">−</button>
           <div class="qty-num">${qty}</div>
           <button class="qty-btn" onclick="chQty('${item.id}',1,event)">+</button>
         </div>`:''}
@@ -386,7 +565,15 @@ function buildMenuSection(listId,items){
     list.appendChild(el);
   });
 }
-function renderMenuList(){buildMenuSection('menu-pizza',PIZZA);buildMenuSection('menu-kanapki',KANAPKI);renderCart()}
+function renderMenuList(){
+  buildMenuSection('menu-pizza',PIZZA);
+  buildMenuSection('menu-kanapki',KANAPKI);
+  buildMenuSection('menu-dodatki',DODATKI);
+  buildMenuSection('menu-sosy',SOSY);
+  buildMenuSection('menu-sniadania',SNIADANIA);
+  buildMenuSection('menu-kawa',[SNIADANIA_KAWA]);
+  renderCart();
+}
 
 function toggleItem(id){
   if(cart[id]){delete cart[id];}
@@ -400,30 +587,38 @@ function chQty(id,d,e){
   afterCartChange();
 }
 
+// After any cart change, re-validate slot selection
 function afterCartChange(){
-  const total=cartTotal();
+  const pQty=cartPizzaQty(), bQty=cartBreakfastQty();
   hideBubble();
-  if(selectedTime&&total>0){
-    const fit=canFitAt(selectedTime,total);
-    if(!fit.ok){
-      const alt=findNearestAvailable(total, selectedTime);
+  if(selectedTime&&(pQty+bQty)>0){
+    let pOk=true, bOk=true;
+    if(pQty>0){pOk=canFitAt(selectedTime,pQty).ok;}
+    if(bQty>0){bOk=bfCanFitAt(selectedTime,bQty).ok;}
+    // Check if selected time exists in correct slot system
+    if(bQty>0&&!bfSlotKeys.includes(selectedTime)){bOk=false;}
+    if(pQty>0&&!slotKeys.includes(selectedTime)){pOk=false;}
+
+    if(!pOk||!bOk){
+      let alt=null;
+      if(pQty>0&&!pOk) alt=findNearestAvailable(pQty, selectedTime);
+      else if(bQty>0&&!bOk) alt=bfFindNearest(bQty, selectedTime);
       if(alt){
         selectedTime=alt.key;
-        const needed=slotsNeeded(total);
+        const needed=slotsNeeded(pQty>0?pQty:bQty);
         if(needed>1){
           const pickup=pickupTimeFromSlots(alt.slotsUsed)||alt.key;
-          showBubble(`Na ${total} pizz potrzebujemy ${needed} slot\u00f3w (po ${MAX} pizze na slot). Wybrano ${alt.key}, odbi\u00f3r o ${pickup}.`);
+          showBubble(`Potrzebujemy ${needed} slotów. Wybrano ${alt.key}, odbiór o ${pickup}.`);
         }
       } else {
         selectedTime=null;
-        showBubble('Przepraszamy, nie mamy wystarczaj\u0105cej liczby wolnych termin\u00f3w na '+total+' pizz. Spr\u00f3buj zmniejszy\u0107 zam\u00f3wienie lub zadzwo\u0144: 509 404 904.');
+        showBubble(`Brak wolnych terminów. Spróbuj zmniejszyć zamówienie lub zadzwoń: 509 404 904.`);
       }
     } else {
-      const needed=slotsNeeded(total);
-      if(needed>1){
-        const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;
-        showBubble(`Na ${total} pizz potrzebujemy ${needed} slot\u00f3w. Zarezerwowano: ${fit.slotsUsed.join(', ')}. Odbi\u00f3r o ${pickup}.`);
-      }
+      let msgs=[];
+      if(pQty>0){const needed=slotsNeeded(pQty);if(needed>1){const fit=canFitAt(selectedTime,pQty);const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;msgs.push(`Pizza: ${needed} slotów, odbiór o ${pickup}`);}}
+      if(bQty>0){const needed=slotsNeeded(bQty);if(needed>1){const fit=bfCanFitAt(selectedTime,bQty);const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;msgs.push(`Śniadania: ${needed} slotów`);}}
+      if(msgs.length) showBubble(msgs.join(' · '));
     }
   }
   renderMenuList();
@@ -445,7 +640,13 @@ function renderCart(){
   const summary=document.getElementById('cart-summary'),rows=document.getElementById('cart-rows'),totalEl=document.getElementById('cart-total-price');
   const items=Object.entries(cart).filter(([,q])=>q>0);
   if(!items.length){summary.classList.remove('show');return}summary.classList.add('show');
-  let tp=0;rows.innerHTML=items.map(([id,qty])=>{const m=MENU.find(x=>x.id===id);tp+=m.price*qty;return`<div class="cart-row"><span>${qty}\u00d7 ${m.name}</span><span>${(m.price*qty).toFixed(2)} PLN</span></div>`}).join('');
+  let tp=0;
+  let html=items.map(([id,qty])=>{const m=MENU.find(x=>x.id===id);tp+=m.price*qty;return`<div class="cart-row"><span>${qty}× ${m.name}</span><span>${(m.price*qty).toFixed(2)} PLN</span></div>`}).join('');
+  if(cartHasBreakfast()){
+    tp+=BREAKFAST_PACKAGING;
+    html+=`<div class="cart-row" style="font-size:.78rem;color:var(--warm-gray)"><span>Opakowanie śniadaniowe (pudełko + torebka)</span><span>${BREAKFAST_PACKAGING.toFixed(2)} PLN</span></div>`;
+  }
+  rows.innerHTML=html;
   totalEl.textContent=`${tp.toFixed(2)} PLN`;
 }
 
@@ -453,27 +654,36 @@ function setNote(type,msg){const n=document.getElementById('avail-note');n.textC
 
 function selectTime(key){
   hideBubble();
-  const total=cartTotal();
+  const pQty=cartPizzaQty(), bQty=cartBreakfastQty();
+  const total=pQty+bQty;
   if(total>0){
-    const fit=canFitAt(key,total);
-    if(!fit.ok){
-      const alt=findNearestAvailable(total, key);
+    // Sprawdź dostępność pizza slotów
+    let pOk=true, pFit=null;
+    if(pQty>0){pFit=canFitAt(key,pQty);pOk=pFit.ok;}
+    // Sprawdź dostępność śniadaniowych slotów
+    let bOk=true, bFit=null;
+    if(bQty>0){bFit=bfCanFitAt(key,bQty);bOk=bFit.ok;}
+
+    if(!pOk||!bOk){
+      // Szukaj najbliższego terminu
+      let alt=null;
+      if(pQty>0&&!pOk) alt=findNearestAvailable(pQty, key);
+      else if(bQty>0&&!bOk) alt=bfFindNearest(bQty, key);
       if(alt){
         selectedTime=alt.key;
-        const needed=slotsNeeded(total);
+        const needed=slotsNeeded(pQty>0?pQty:bQty);
         const pickup=pickupTimeFromSlots(alt.slotsUsed)||alt.key;
-        showBubble(`Godzina ${key} nie ma wystarczaj\u0105co miejsca na ${total} pizz. Proponujemy start o ${alt.key}${needed>1?', odbi\u00f3r o '+pickup:''}.`);
+        showBubble(`Godzina ${key} jest niedostępna. Proponujemy ${alt.key}${needed>1?', odbiór o '+pickup:''}.`);
       } else {
         selectedTime=null;
-        showBubble('Przepraszamy, nie mamy wystarczaj\u0105cej liczby wolnych termin\u00f3w na '+total+' pizz. Zadzwo\u0144: 509 404 904.');
+        showBubble(`Przepraszamy, brak wolnych terminów. Zadzwoń: 509 404 904.`);
       }
     } else {
       selectedTime=key;
-      const needed=slotsNeeded(total);
-      if(needed>1){
-        const pickup=pickupTimeFromSlots(fit.slotsUsed)||key;
-        showBubble(`Na ${total} pizz zarezerwowano ${needed} slot\u00f3w: ${fit.slotsUsed.join(', ')}. Odbi\u00f3r o ${pickup}.`);
-      }
+      let msgs=[];
+      if(pQty>0){const needed=slotsNeeded(pQty);if(needed>1){const pickup=pickupTimeFromSlots(pFit.slotsUsed)||key;msgs.push(`Pizza: ${needed} slotów (${pFit.slotsUsed.join(', ')}), odbiór o ${pickup}`);}}
+      if(bQty>0){const needed=slotsNeeded(bQty);if(needed>1){const pickup=pickupTimeFromSlots(bFit.slotsUsed)||key;msgs.push(`Śniadania: ${needed} slotów (${bFit.slotsUsed.join(', ')})`);}}
+      if(msgs.length) showBubble(msgs.join(' · '));
     }
   } else {
     selectedTime=key;
@@ -483,38 +693,51 @@ function selectTime(key){
 }
 
 function updateBtn(){
-  const btn=document.getElementById('btn-order');if(!btn)return;const n=cartTotal();const ok=selectedTime&&n>0;
+  const btn=document.getElementById('btn-order');if(!btn)return;
+  const n=cartTotal();const tp=cartTotalPrice();
+  const ok=selectedTime&&n>0;
   btn.disabled=!ok;
-  if(!n)btn.textContent='Zamawiam \u2014 wybierz co chcesz zje\u015b\u0107';
-  else if(!selectedTime)btn.textContent='Zamawiam \u2014 wybierz godzin\u0119 odbioru';
+  if(!n)btn.textContent='Zamawiam — wybierz co chcesz zjeść';
+  else if(!selectedTime)btn.textContent=`Zamawiam ${n} szt · ${tp.toFixed(2)} PLN — wybierz godzinę`;
   else{
-    const needed=slotsNeeded(n);
-    const fit=canFitAt(selectedTime,n);
-    const pickup=(fit.ok&&needed>1)?pickupTimeFromSlots(fit.slotsUsed)||selectedTime:selectedTime;
-    btn.textContent=`Zamawiam ${n} szt \u00b7 odbi\u00f3r ${pickup}${needed>1?' ('+needed+' sloty)':''} \u2192`;
+    const pQty=cartPizzaQty(), bQty=cartBreakfastQty();
+    let pickup=selectedTime;
+    if(pQty>0){const fit=canFitAt(selectedTime,pQty);if(fit.ok&&slotsNeeded(pQty)>1){pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;}}
+    else if(bQty>0){const fit=bfCanFitAt(selectedTime,bQty);if(fit.ok&&slotsNeeded(bQty)>1){pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;}}
+    btn.textContent=`Zamawiam · ${tp.toFixed(2)} PLN · odbiór ${pickup} →`;
   }
 }
 
 async function placeOrder(){
   const name=document.getElementById('inp-name').value.trim(),phone=document.getElementById('inp-phone').value.trim();
-  if(!name||!phone){alert('Podaj imi\u0119 i telefon');return}
+  const notes=(document.getElementById('inp-notes')||{}).value||'';
+  if(!name||!phone){alert('Podaj imię i telefon');return}
   const phoneDigits=phone.replace(/\D/g,'');
   if(phoneDigits.length<9){alert('Podaj poprawny numer telefonu (min. 9 cyfr)');return}
   if(!selectedTime||!cartTotal())return;
-  const total=cartTotal();
-  const fit=canFitAt(selectedTime,total);
-  if(!fit.ok){
-    setNote('warn','\u26a0\ufe0f Termin zosta\u0142 w\u0142a\u015bnie zaj\u0119ty. Wybierz inn\u0105 godzin\u0119.');
-    await refreshSlots();
-    return;
-  }
-  const needed=slotsNeeded(total);
-  const actualPickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;
 
-  const items=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{const m=MENU.find(x=>x.id===id);return{name:m.name,qty,price:m.price}});
-  const tp=items.reduce((s,i)=>s+i.qty*i.price,0);
+  // Final availability check
+  const pQty=cartPizzaQty(), bQty=cartBreakfastQty();
+  let pFit={ok:true,slotsUsed:[selectedTime]}, bFit={ok:true,slotsUsed:[selectedTime]};
+  if(pQty>0){pFit=canFitAt(selectedTime,pQty);if(!pFit.ok){setNote('warn','⚠️ Termin pizzy zajęty. Wybierz inną godzinę.');await refreshSlots();return;}}
+  if(bQty>0){bFit=bfCanFitAt(selectedTime,bQty);if(!bFit.ok){setNote('warn','⚠️ Termin śniadania zajęty. Wybierz inną godzinę.');await refreshSlots();return;}}
+
+  const items=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{
+    const m=MENU.find(x=>x.id===id);
+    const type=isBreakfastItem(id)?'breakfast':(isExtraItem(id)?'extra':'pizza');
+    return{name:m.name,qty,price:m.price,type};
+  });
+  let tp=items.reduce((s,i)=>s+i.qty*i.price,0);
+  if(cartHasBreakfast()) tp+=BREAKFAST_PACKAGING;
+
+  // Czas odbioru = ostatni użyty slot
+  let actualPickup=selectedTime;
+  if(pQty>0&&slotsNeeded(pQty)>1){const p=pickupTimeFromSlots(pFit.slotsUsed);if(p)actualPickup=p;}
+  else if(bQty>0&&slotsNeeded(bQty)>1){const p=pickupTimeFromSlots(bFit.slotsUsed);if(p)actualPickup=p;}
+
   document.getElementById('loading-bar').classList.add('show');
   document.getElementById('btn-order').disabled=true;
+
   if(useSupabase){
     const dateStr=`${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
     const {error}=await sbClient.from('orders').insert({
@@ -523,6 +746,7 @@ async function placeOrder(){
       date: dateStr,
       items: items,
       total: tp,
+      notes: notes.trim()||null,
       source: 'online',
       sms_notify: document.getElementById('chk-sms').checked,
       done: false,
@@ -532,25 +756,31 @@ async function placeOrder(){
     if(error){
       document.getElementById('loading-bar').classList.remove('show');
       document.getElementById('btn-order').disabled=false;
-      alert('Przepraszamy, wyst\u0105pi\u0142 b\u0142\u0105d. Spr\u00f3buj ponownie lub zadzwo\u0144.');
+      alert('Przepraszamy, wystąpił błąd. Spróbuj ponownie lub zadzwoń.');
       console.error('Supabase insert error:',error);
       return;
     }
   }
+
   document.getElementById('loading-bar').classList.remove('show');
   document.getElementById('order-form').style.display='none';
   document.getElementById('success-screen').classList.add('show');
-  document.getElementById('success-items').innerHTML=items.map(i=>`<div class="cart-row"><span>${i.qty}\u00d7 ${i.name}</span><span>${(i.qty*i.price).toFixed(2)} PLN</span></div>`).join('')+`<div class="cart-row cart-total"><span>Razem</span><span>${tp.toFixed(2)} PLN</span></div>`;
-  document.getElementById('success-detail').innerHTML=`Odbi\u00f3r o <strong>${actualPickup}</strong>${needed>1?' <span style="font-size:.8rem;color:var(--warm-gray)">(przygotowanie od '+selectedTime+' do '+actualPickup+')</span>':''} \u00b7 ul. Lubelska 78, Wi\u0105zowna<br>P\u0142atno\u015b\u0107 got\u00f3wk\u0105 lub kart\u0105 przy odbiorze`;
+  let successHtml=items.map(i=>`<div class="cart-row"><span>${i.qty}× ${i.name}</span><span>${(i.qty*i.price).toFixed(2)} PLN</span></div>`).join('');
+  if(cartHasBreakfast()) successHtml+=`<div class="cart-row" style="font-size:.78rem;color:var(--warm-gray)"><span>Opakowanie śniadaniowe</span><span>${BREAKFAST_PACKAGING.toFixed(2)} PLN</span></div>`;
+  successHtml+=`<div class="cart-row cart-total"><span>Razem</span><span>${tp.toFixed(2)} PLN</span></div>`;
+  document.getElementById('success-items').innerHTML=successHtml;
+  document.getElementById('success-detail').innerHTML=`Odbiór o <strong>${actualPickup}</strong>${needed>1?' <span style="font-size:.8rem;color:var(--warm-gray)">(przygotowanie od '+selectedTime+' do '+actualPickup+')</span>':''} · ul. Lubelska 78, Wiązowna<br>Płatność gotówką lub kartą przy odbiorze`;
 }
 function resetOrder(){
   selectedTime=null;cart={};hideBubble();
   document.getElementById('inp-name').value='';document.getElementById('inp-phone').value='';document.getElementById('chk-sms').checked=false;
+  if(document.getElementById('inp-notes'))document.getElementById('inp-notes').value='';
   document.getElementById('order-form').style.display='block';
   document.getElementById('success-screen').classList.remove('show');
   renderMenuList();renderCustomerGrid();
 }
 
+// Auto-refresh past slots every minute
 setInterval(()=>renderCustomerGrid(),60000);
 
 initSlots();
