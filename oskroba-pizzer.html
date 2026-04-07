@@ -57,9 +57,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .btn-done:hover{background:var(--sage);color:white}
 .order-items{display:flex;flex-wrap:wrap;gap:.35rem}
 .order-item-tag{font-size:.72rem;font-family:'DM Mono',monospace;background:var(--cream);border:1px solid var(--light-gray);border-radius:20px;padding:.2rem .55rem}
-.order-item-tag.breakfast{background:#FFF3D0;border-color:#E8C84A;color:#7A6200}
-.order-item-tag.sauce{background:#FFE8D6;border-color:#E8944A;color:#8A4800}
-.order-item-tag.extra{background:#FFE0E0;border-color:#D43030;color:#8B0000;font-weight:600}
+.order-item-tag.item-pizza{background:#FF3B30;border-color:#FF3B30;color:#ffffff}
+.order-item-tag.item-kanapka{background:#FF69A0;border-color:#FF69A0;color:#7A1040}
+.order-item-tag.item-dodatek{background:#0071E3;border-color:#0071E3;color:#ffffff;font-weight:600}
+.order-item-tag.sauce{background:#FF8C00;border-color:#FF8C00;color:#5C2D00}
+.order-item-tag.breakfast{background:#28A745;border-color:#28A745;color:#EAFAF0}
+.order-item-tag.coffee{background:#7B4F2E;border-color:#7B4F2E;color:#FDF4EE}
 .new-order-alert{display:none;background:var(--rust);color:white;padding:.75rem 1.5rem;border-radius:12px;font-weight:500;margin-bottom:1rem;align-items:center;gap:.75rem;animation:shake .4s ease}
 .new-order-alert.show{display:flex}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
@@ -363,7 +366,8 @@ function isExtraType(item){return item.type==='extra'}
 function pizzaQtyFromItems(items){return items.filter(i=>isPizzaType(i)).reduce((s,i)=>s+i.qty,0)}
 function isSauceItem(name){const n=name.toLowerCase();return n.includes('sos ')|| n.includes('sos\u00a0')||n.startsWith('sos ')||n==='sos pomidorowy'||n==='sos czosnkowy'||n.includes('czosnkowy')||n.includes('pomidorowy sos')}
 function isExtraItem(item){return item.type==='extra'&&!isSauceItem(item.name)}
-function itemTagClass(item){if(item.type==='breakfast')return' breakfast';if(item.type==='extra'&&isSauceItem(item.name))return' sauce';if(item.type==='extra')return' extra';return''}
+function isCoffeeItem(item){const n=item.name.toLowerCase();return n.includes('kawa')}
+function itemTagClass(item){if(item.type==='breakfast'&&isCoffeeItem(item))return' coffee';if(item.type==='breakfast')return' breakfast';if(item.type==='extra'&&isSauceItem(item.name))return' sauce';if(item.type==='extra')return' item-dodatek';if(item.type==='kanapka')return' item-kanapka';if(item.type==='pizza')return' item-pizza';return''}
 
 function renderOrders(){
   const list=document.getElementById('orders-list'),badge=document.getElementById('order-count-badge');
