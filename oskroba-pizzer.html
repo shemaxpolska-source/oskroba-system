@@ -460,7 +460,9 @@ function playBreakfastSound(){
     }
   }catch(e){console.warn('Audio error:',e)}
 }
+let lastAlertTime=0;
 function showAlert(text,orderItems){
+  const now=Date.now();if(now-lastAlertTime<3000)return;lastAlertTime=now;
   const el=document.getElementById('new-order-alert');document.getElementById('alert-text').textContent=text;
   const hasBf=orderItems&&orderItems.some(i=>i.type==='breakfast');
   const hasPizza=orderItems&&orderItems.some(i=>i.type==='pizza'||i.type==='kanapka');
