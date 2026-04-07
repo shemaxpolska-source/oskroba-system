@@ -271,6 +271,7 @@ function isPast(key){
 // Helpers: cart item types
 function isPizzaItem(id){return PIZZA.some(p=>p.id===id)||KANAPKI.some(k=>k.id===id)}
 function isBreakfastItem(id){return SNIADANIA.some(s=>s.id===id)||id===SNIADANIA_KAWA.id}
+function isBreakfastAvailable(){const bf=getBreakfastHours();const now=new Date();const nowMin=now.getHours()*60+now.getMinutes();const endMin=bf.endH*60+bf.endM;return nowMin<endMin}
 function isExtraItem(id){return DODATKI.some(d=>d.id===id)||SOSY.some(s=>s.id===id)}
 function cartPizzaQty(){return Object.entries(cart).filter(([id])=>isPizzaItem(id)).reduce((s,[,q])=>s+q,0)}
 function cartBreakfastQty(){return Object.entries(cart).filter(([id])=>isBreakfastItem(id)).reduce((s,[,q])=>s+q,0)}
@@ -550,40 +551,45 @@ function renderCustomerGrid(){
   updateBtn();
 }
 
-function buildMenuSection(listId,items){
+function buildMenuSection(listId,items,disabled){
   const list=document.getElementById(listId);if(!list)return;list.innerHTML='';
   items.forEach(item=>{
-    const qty=cart[item.id]||0;const el=document.createElement('div');el.className=`menu-item${qty>0?' selected':''}`;
+    const qty=cart[item.id]||0;const el=document.createElement('div');el.className=`menu-item${qty>0?' selected':''}${disabled?' disabled':''}`;
+    if(disabled){el.style.opacity='0.4';el.style.pointerEvents='none'}
     el.innerHTML=`<div class="menu-item-check">${qty>0?'\u2713':''}</div>
       ${item.img?`<img class="menu-item-img" src="${item.img}" alt="${item.name}" loading="lazy">`:`​`}
-      <div class="menu-item-info"><div class="menu-item-name">${item.name}</div><div class="menu-item-desc">${item.desc}</div>
-        ${qty>0?`<div class="menu-item-qty">
+      <div class="menu-item-info"><div class="menu-item-name">${item.name}</div><div class="menu-item-desc">${disabled?'⏰ Śniadania dostępne do 12:30':item.desc}</div>
+        ${qty>0&&!disabled?`<div class="menu-item-qty">
           <button class="qty-btn" onclick="chQty('${item.id}',-1,event)">\u2212</button>
           <div class="qty-num">${qty}</div>
           <button class="qty-btn" onclick="chQty('${item.id}',1,event)">+</button>
         </div>`:''}
       </div><div class="menu-item-price">${item.price.toFixed(2)} PLN</div>`;
-    el.onclick=(e)=>{if(!e.target.closest('.qty-btn'))toggleItem(item.id)};
+    if(!disabled)el.onclick=(e)=>{if(!e.target.closest('.qty-btn'))toggleItem(item.id)};
     list.appendChild(el);
   });
 }
 function renderMenuList(){
+  const bfOff=!isBreakfastAvailable();
   buildMenuSection('menu-pizza',PIZZA);
   buildMenuSection('menu-kanapki',KANAPKI);
   buildMenuSection('menu-dodatki',DODATKI);
   buildMenuSection('menu-sosy',SOSY);
-  buildMenuSection('menu-sniadania',SNIADANIA);
-  buildMenuSection('menu-kawa',[SNIADANIA_KAWA]);
+  buildMenuSection('menu-sniadania',SNIADANIA,bfOff);
+  buildMenuSection('menu-kawa',[SNIADANIA_KAWA],bfOff);
   renderCart();
 }
 
 function toggleItem(id){
+  if(isBreakfastItem(id)&&!isBreakfastAvailable()){return}
   if(cart[id]){delete cart[id];}
   else{cart[id]=1;}
   afterCartChange();
 }
 function chQty(id,d,e){
-  e.stopPropagation();const nq=(cart[id]||0)+d;
+  e.stopPropagation();
+  if(d>0&&isBreakfastItem(id)&&!isBreakfastAvailable()){return}
+  const nq=(cart[id]||0)+d;
   if(nq<=0){delete cart[id];}
   else{cart[id]=nq;}
   afterCartChange();
