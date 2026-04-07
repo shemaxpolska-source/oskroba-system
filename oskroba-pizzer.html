@@ -445,9 +445,20 @@ function playBreakfastSound(){
 function showAlert(text,orderItems){
   const el=document.getElementById('new-order-alert');document.getElementById('alert-text').textContent=text;
   const hasBf=orderItems&&orderItems.some(i=>i.type==='breakfast');
-  if(hasBf){el.style.background='var(--gold)'}else{el.style.background='var(--rust)'}
-  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),5000);
-  if(hasBf){playBreakfastSound()}else{playOrderSound()}
+  const hasPizza=orderItems&&orderItems.some(i=>i.type==='pizza'||i.type==='kanapka');
+  if(hasBf&&hasPizza){
+    // MIESZANE: pizza + śniadanie — gradient + oba dźwięki po kolei
+    el.style.background='linear-gradient(135deg, var(--rust) 0%, var(--gold) 100%)';
+    playOrderSound();
+    setTimeout(()=>playBreakfastSound(),2200);
+  }else if(hasBf){
+    el.style.background='var(--gold)';
+    playBreakfastSound();
+  }else{
+    el.style.background='var(--rust)';
+    playOrderSound();
+  }
+  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),6000);
 }
 
 // MODAL tel
