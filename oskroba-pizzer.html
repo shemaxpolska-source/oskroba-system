@@ -59,6 +59,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--charco
 .order-item-tag{font-size:.72rem;font-family:'DM Mono',monospace;background:var(--cream);border:1px solid var(--light-gray);border-radius:20px;padding:.2rem .55rem}
 .order-item-tag.breakfast{background:#FFF3D0;border-color:#E8C84A;color:#7A6200}
 .order-item-tag.sauce{background:#FFE8D6;border-color:#E8944A;color:#8A4800}
+.order-item-tag.extra{background:#FFE0E0;border-color:#D43030;color:#8B0000;font-weight:600}
 .new-order-alert{display:none;background:var(--rust);color:white;padding:.75rem 1.5rem;border-radius:12px;font-weight:500;margin-bottom:1rem;align-items:center;gap:.75rem;animation:shake .4s ease}
 .new-order-alert.show{display:flex}
 @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
@@ -277,7 +278,7 @@ async function initSlots(){
     const {data:ordData}=await sbClient.from('orders').select('*').eq('date',dateStr).eq('cancelled',false).order('created_at');
     if(ordData){
       orders=ordData.map(o=>({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items}));
-      ordData.forEach(o=>{const qty=o.items.reduce((s,i)=>s+i.qty,0);distributeBackwards(o.pickup_time,qty)});
+      ordData.forEach(o=>{const qty=pizzaQtyFromItems(o.items);distributeBackwards(o.pickup_time,qty)});
     }
     // Wczytaj blokady
     const {data:blData}=await sbClient.from('blocked_slots').select('*').eq('date',dateStr);
@@ -291,7 +292,7 @@ async function initSlots(){
           const o=payload.new;
           // Sprawdź czy to zamówienie już nie jest w liście (ochrona przed duplikatami)
           if(o.date===dateStr && !orders.some(ex=>String(ex.id)===String(o.id))){
-            const qty=o.items.reduce((s,i)=>s+i.qty,0);
+            const qty=pizzaQtyFromItems(o.items);
             distributeBackwards(o.pickup_time,qty);
             orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
             renderPizzerPanel();
@@ -312,7 +313,7 @@ async function initSlots(){
         const freshOrders=newOrders.filter(o=>!existingIds.has(String(o.id)));
         if(freshOrders.length>0){
           freshOrders.forEach(o=>{
-            const qty=o.items.reduce((s,i)=>s+i.qty,0);
+            const qty=pizzaQtyFromItems(o.items);
             distributeBackwards(o.pickup_time,qty);
             orders.push({id:o.id,name:o.name,phone:o.phone,time:o.pickup_time,done:o.done,source:o.source,items:o.items});
           });
@@ -356,8 +357,12 @@ function renderPizzerPanel(){
 }
 
 function isBreakfastOrder(items){return items.some(i=>i.type==='breakfast')}
+function isPizzaType(item){return item.type==='pizza'||item.type==='kanapka'}
+function isExtraType(item){return item.type==='extra'}
+function pizzaQtyFromItems(items){return items.filter(i=>isPizzaType(i)).reduce((s,i)=>s+i.qty,0)}
 function isSauceItem(name){const n=name.toLowerCase();return n.includes('sos ')|| n.includes('sos\u00a0')||n.startsWith('sos ')||n==='sos pomidorowy'||n==='sos czosnkowy'||n.includes('czosnkowy')||n.includes('pomidorowy sos')}
-function itemTagClass(item){if(item.type==='breakfast')return' breakfast';if(item.type==='extra'&&isSauceItem(item.name))return' sauce';return''}
+function isExtraItem(item){return item.type==='extra'&&!isSauceItem(item.name)}
+function itemTagClass(item){if(item.type==='breakfast')return' breakfast';if(item.type==='extra'&&isSauceItem(item.name))return' sauce';if(item.type==='extra')return' extra';return''}
 
 function renderOrders(){
   const list=document.getElementById('orders-list'),badge=document.getElementById('order-count-badge');
@@ -365,7 +370,7 @@ function renderOrders(){
   if(!orders.length){list.innerHTML='<div style="color:var(--warm-gray);font-size:.85rem;font-family:\'DM Mono\'">Brak zamówień. Czekamy... 🕐</div>';return}
   list.innerHTML='';
   [...orders].sort((a,b)=>a.time.localeCompare(b.time)).forEach(o=>{
-    const tq=o.items.reduce((s,i)=>s+i.qty,0),tp=o.items.reduce((s,i)=>s+i.qty*i.price,0);
+    const tq=pizzaQtyFromItems(o.items),tp=o.items.reduce((s,i)=>s+i.qty*i.price,0);
     const hasBf=isBreakfastOrder(o.items);
     const cardClass=`order-card ${o.done?'done':''} ${hasBf?'breakfast':''}`.trim();
     const emoji=hasBf?'☀️':'🍕';
