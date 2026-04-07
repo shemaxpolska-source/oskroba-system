@@ -240,7 +240,7 @@ const PIZZA_MENU=[...PIZZA,...KANAPKI];
 const EXTRAS_MENU=[...DODATKI,...SOSY];
 const MENU=[...PIZZA,...KANAPKI,...DODATKI,...SOSY,...SNIADANIA,SNIADANIA_KAWA];
 const BREAKFAST_PACKAGING=2.50; // pudełko 1.50 + torebka 1.00
-const MAX=2,STEP=5;
+const MAX=2,BF_MAX=99,STEP=5;
 let today=new Date();
 let slots={},selectedTime=null,cart={};
 let slotKeys=[]; // sorted list of pizza slot keys
@@ -280,6 +280,7 @@ function cartHasBreakfast(){return cartBreakfastQty()>0}
 
 // How many consecutive slots are needed for N pizzas
 function slotsNeeded(qty){return Math.ceil(qty/MAX)}
+function bfSlotsNeeded(qty){return Math.ceil(qty/BF_MAX)}
 
 // Check if we can fit totalQty pizzas starting from startKey
 // Returns {ok:boolean, slotsUsed:string[]}
@@ -330,7 +331,7 @@ function pickupTimeFromSlots(slotsUsed){
 
 // ══ BREAKFAST SLOT FUNCTIONS ══
 function bfCanFitAt(startKey, totalQty){
-  const needed=slotsNeeded(totalQty);
+  const needed=bfSlotsNeeded(totalQty);
   const startIdx=bfSlotKeys.indexOf(startKey);
   if(startIdx<0)return{ok:false,slotsUsed:[]};
   const used=[];let remaining=totalQty;
@@ -339,7 +340,7 @@ function bfCanFitAt(startKey, totalQty){
     const key=bfSlotKeys[startIdx+i];
     const s=bfSlots[key];
     if(!s||s.manualBlocked||isPast(key))return{ok:false,slotsUsed:[]};
-    const avail=MAX-s.count;
+    const avail=BF_MAX-s.count;
     if(avail<=0)return{ok:false,slotsUsed:[]};
     used.push(key);remaining-=avail;
     if(remaining<=0)break;
@@ -417,11 +418,11 @@ async function initSlots(){
       }
       // Breakfast slots — WSTECZ od pickup_time
       if(bQty>0){
-        const needed=slotsNeeded(bQty);
+        const needed=bfSlotsNeeded(bQty);
         const endIdx=bfSlotKeys.indexOf(o.pickup_time);
         if(endIdx>=0){
           let rem=bQty;const si=Math.max(0,endIdx-(needed-1));
-          for(let i=si;i<=endIdx;i++){const k=bfSlotKeys[i];const add=Math.min(rem,MAX);bfSlots[k].count+=add;rem-=add;}
+          for(let i=si;i<=endIdx;i++){const k=bfSlotKeys[i];const add=Math.min(rem,BF_MAX);bfSlots[k].count+=add;rem-=add;}
         }
       }
     });
@@ -452,9 +453,9 @@ async function refreshSlots(){
       if(endIdx>=0){let rem=pQty;const si=Math.max(0,endIdx-(needed-1));for(let i=si;i<=endIdx;i++){const k=slotKeys[i];const add=Math.min(rem,MAX);slots[k].count+=add;rem-=add;}}
     }
     if(bQty>0){
-      const needed=slotsNeeded(bQty);
+      const needed=bfSlotsNeeded(bQty);
       const endIdx=bfSlotKeys.indexOf(o.pickup_time);
-      if(endIdx>=0){let rem=bQty;const si=Math.max(0,endIdx-(needed-1));for(let i=si;i<=endIdx;i++){const k=bfSlotKeys[i];const add=Math.min(rem,MAX);bfSlots[k].count+=add;rem-=add;}}
+      if(endIdx>=0){let rem=bQty;const si=Math.max(0,endIdx-(needed-1));for(let i=si;i<=endIdx;i++){const k=bfSlotKeys[i];const add=Math.min(rem,BF_MAX);bfSlots[k].count+=add;rem-=add;}}
     }
   });
   const {data:blocked}=await sbClient.from('blocked_slots').select('slot_time').eq('date',dateStr);
@@ -536,11 +537,11 @@ function renderCustomerGrid(){
     else{
       // Show minimum remaining for the active mode
       const sRem=(slots[key]?MAX-slots[key].count:MAX);
-      const bRem=(bfSlots[key]?MAX-bfSlots[key].count:MAX);
+      const bRem=(bfSlots[key]?BF_MAX-bfSlots[key].count:BF_MAX);
       let rem=MAX;
       if(mode==='pizza') rem=sRem;
-      else if(mode==='breakfast') rem=bRem;
-      else rem=Math.min(sRem,bRem);
+      else if(mode==='breakfast') rem=Math.min(bRem,MAX);
+      else rem=sRem;
       if(rem===1) label='1 wolne';
     }
 
@@ -613,7 +614,7 @@ function afterCartChange(){
       else if(bQty>0&&!bOk) alt=bfFindNearest(bQty, selectedTime);
       if(alt){
         selectedTime=alt.key;
-        const needed=slotsNeeded(pQty>0?pQty:bQty);
+        const needed=pQty>0?slotsNeeded(pQty):bfSlotsNeeded(bQty);
         if(needed>1){
           const pickup=pickupTimeFromSlots(alt.slotsUsed)||alt.key;
           showBubble(`Potrzebujemy ${needed} slotów. Wybrano ${alt.key}, odbiór o ${pickup}.`);
@@ -625,7 +626,7 @@ function afterCartChange(){
     } else {
       let msgs=[];
       if(pQty>0){const needed=slotsNeeded(pQty);if(needed>1){const fit=canFitAt(selectedTime,pQty);const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;msgs.push(`Pizza: ${needed} slotów, odbiór o ${pickup}`);}}
-      if(bQty>0){const needed=slotsNeeded(bQty);if(needed>1){const fit=bfCanFitAt(selectedTime,bQty);const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;msgs.push(`Śniadania: ${needed} slotów`);}}
+      if(bQty>0){const needed=bfSlotsNeeded(bQty);if(needed>1){const fit=bfCanFitAt(selectedTime,bQty);const pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;msgs.push(`Śniadania: ${needed} slotów`);}}
       if(msgs.length) showBubble(msgs.join(' · '));
     }
   }
@@ -679,7 +680,7 @@ function selectTime(key){
       else if(bQty>0&&!bOk) alt=bfFindNearest(bQty, key);
       if(alt){
         selectedTime=alt.key;
-        const needed=slotsNeeded(pQty>0?pQty:bQty);
+        const needed=pQty>0?slotsNeeded(pQty):bfSlotsNeeded(bQty);
         const pickup=pickupTimeFromSlots(alt.slotsUsed)||alt.key;
         showBubble(`Godzina ${key} jest niedostępna. Proponujemy ${alt.key}${needed>1?', odbiór o '+pickup:''}.`);
       } else {
@@ -690,7 +691,7 @@ function selectTime(key){
       selectedTime=key;
       let msgs=[];
       if(pQty>0){const needed=slotsNeeded(pQty);if(needed>1){const pickup=pickupTimeFromSlots(pFit.slotsUsed)||key;msgs.push(`Pizza: ${needed} slotów (${pFit.slotsUsed.join(', ')}), odbiór o ${pickup}`);}}
-      if(bQty>0){const needed=slotsNeeded(bQty);if(needed>1){const pickup=pickupTimeFromSlots(bFit.slotsUsed)||key;msgs.push(`Śniadania: ${needed} slotów (${bFit.slotsUsed.join(', ')})`);}}
+      if(bQty>0){const needed=bfSlotsNeeded(bQty);if(needed>1){const pickup=pickupTimeFromSlots(bFit.slotsUsed)||key;msgs.push(`Śniadania: ${needed} slotów (${bFit.slotsUsed.join(', ')})`);}}
       if(msgs.length) showBubble(msgs.join(' · '));
     }
   } else {
@@ -711,7 +712,7 @@ function updateBtn(){
     const pQty=cartPizzaQty(), bQty=cartBreakfastQty();
     let pickup=selectedTime;
     if(pQty>0){const fit=canFitAt(selectedTime,pQty);if(fit.ok&&slotsNeeded(pQty)>1){pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;}}
-    else if(bQty>0){const fit=bfCanFitAt(selectedTime,bQty);if(fit.ok&&slotsNeeded(bQty)>1){pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;}}
+    else if(bQty>0){const fit=bfCanFitAt(selectedTime,bQty);if(fit.ok&&bfSlotsNeeded(bQty)>1){pickup=pickupTimeFromSlots(fit.slotsUsed)||selectedTime;}}
     btn.textContent=`Zamawiam · ${tp.toFixed(2)} PLN · odbiór ${pickup} →`;
   }
 }
@@ -741,7 +742,7 @@ async function placeOrder(){
   // Czas odbioru = ostatni użyty slot
   let actualPickup=selectedTime;
   if(pQty>0&&slotsNeeded(pQty)>1){const p=pickupTimeFromSlots(pFit.slotsUsed);if(p)actualPickup=p;}
-  else if(bQty>0&&slotsNeeded(bQty)>1){const p=pickupTimeFromSlots(bFit.slotsUsed);if(p)actualPickup=p;}
+  else if(bQty>0&&bfSlotsNeeded(bQty)>1){const p=pickupTimeFromSlots(bFit.slotsUsed);if(p)actualPickup=p;}
 
   document.getElementById('loading-bar').classList.add('show');
   document.getElementById('btn-order').disabled=true;
