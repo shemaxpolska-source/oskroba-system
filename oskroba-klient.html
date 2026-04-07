@@ -733,7 +733,8 @@ async function placeOrder(){
 
   const items=Object.entries(cart).filter(([,q])=>q>0).map(([id,qty])=>{
     const m=MENU.find(x=>x.id===id);
-    const type=isBreakfastItem(id)?'breakfast':(isExtraItem(id)?'extra':'pizza');
+    const isKanapka=KANAPKI.some(k=>k.id===id);
+    const type=isBreakfastItem(id)?'breakfast':(isExtraItem(id)?'extra':(isKanapka?'kanapka':'pizza'));
     return{name:m.name,qty,price:m.price,type};
   });
   let tp=items.reduce((s,i)=>s+i.qty*i.price,0);
